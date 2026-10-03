@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#155eef" />
-<title>StockFlow | Inventory Management - Admin Product CRUD</title>
+<title>StockFlow | Inventory Management</title>
 <!-- Excel import/export: SheetJS. Camera scanning: html5-qrcode. Internet access is needed for these CDN libraries. -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -54,7 +54,7 @@ body.scanner-only #scannerStandaloneScreen{display:block!important}
       <div class="login-feature"><div class="feature-icon">▣</div><div><strong>Mobile barcode scan</strong><div class="small" style="color:#dce7ff">Quét nhanh bằng camera điện thoại</div></div></div>
       <div class="login-feature"><div class="feature-icon">↗</div><div><strong>Live session view</strong><div class="small" style="color:#dce7ff">Theo dõi kết quả kiểm kê</div></div></div>
     </div>
-    <div class="small" style="color:#dce7ff">StockFlow V1 · Admin Product CRUD</div>
+
   </section>
   <section class="login-panel">
     <div class="login-box">
@@ -72,7 +72,7 @@ body.scanner-only #scannerStandaloneScreen{display:block!important}
         </div>
         <button class="btn btn-primary btn-block" style="margin-top:22px;padding:13px" type="submit" id="loginSubmit">Đăng nhập →</button>
       </form>
-      <div class="hint">Dữ liệu được lưu trên Supabase. Đăng nhập dùng User trong <b>public.users</b> và PostgreSQL RPC để kiểm tra password; không cần email và không phụ thuộc Supabase Auth.</div><button type="button" class="btn btn-secondary btn-block" style="margin-top:10px" onclick="testUserDatabase()">Kiểm tra đăng nhập User</button><button type="button" class="btn btn-secondary btn-block" style="margin-top:10px" onclick="openInitialAdminModal()">Thiết lập Administrator đầu tiên</button>
+
     </div>
   </section>
 </div>
@@ -88,7 +88,7 @@ body.scanner-only #scannerStandaloneScreen{display:block!important}
 </div>
 <div id="appShell" class="app-shell hidden">
   <header class="topbar">
-    <div class="brand"><span class="brandmark">▦</span> StockFlow <span class="badge badge-blue" style="margin-left:3px">Admin CRUD</span></div>
+    <div class="brand"><span class="brandmark">▦</span> StockFlow</div>
     <div class="top-actions">
       <button class="btn btn-light btn-sm" onclick="openQuickScan()">▣ <span class="mobile-hide">Scan Session</span></button>
       <div class="user-chip"><div class="avatar" id="userAvatar">A</div><div><strong id="headerUser">Admin</strong><div class="small muted" id="headerRole">Administrator</div></div></div>
@@ -103,7 +103,7 @@ body.scanner-only #scannerStandaloneScreen{display:block!important}
       <button class="nav-btn" data-page="sessions" onclick="navigate('sessions')"><span class="ico">▣</span> Quản lý tồn kho</button>
       <button class="nav-btn" data-page="users" onclick="navigate('users')"><span class="ico">♙</span> Users</button>
       <button class="nav-btn" data-page="scanner" onclick="navigate('scanner')"><span class="ico">⌗</span> Barcode Scanner</button>
-            <div class="sidebar-bottom">Inventory workspace<br><span id="sidebarDate"></span><br><br><span class="badge badge-amber">Local demo mode</span></div>
+            <div class="sidebar-bottom"><span id="sidebarDate"></span></div>
     </aside>
     <main class="main" id="mainContent"></main>
   </div>
@@ -124,7 +124,7 @@ const SUPABASE_PUBLISHABLE_KEY='sb_publishable_crySob1s3g7IajcgToHV9A_jrqoPcfk';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 
 let state={products:[],sessions:[],transactions:[],stores:[],users:[]};
-let currentUser=null,currentPage='dashboard',loginMode='login',activeSessionId=null,scanner=null,scanProduct=null,lastScannedBarcode='',sessionFilter='all',pendingImport=[];
+let currentUser=null,currentPage='dashboard',loginMode='login',activeSessionId=null,scanner=null,scanProduct=null,lastScannedBarcode='',sessionFilter='all',pendingImport=[],sessionStopRequested=false;
 let realtimeChannel=null;
 const $=id=>document.getElementById(id);
 const uid=()=>crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -352,8 +352,7 @@ $('loginForm').addEventListener('submit',async e=>{
       if(error)throw error;
       const session=Array.isArray(data)?data[0]:data;
       if(!session||session.success===false)throw new Error(session?.message||'Không tìm thấy phiên hoặc phiên đã khóa.');
-      // Scanner luôn mở giao diện riêng, không vào app/dashboard.
-      const u=new URL(window.location.href);
+        const u=new URL(window.location.href);
       u.searchParams.set('scan',code);
       window.location.href=u.toString();
       return;
@@ -420,6 +419,9 @@ async function startCamera(){
       {facingMode:'environment'},
       config,
       decodedText=>{
+        if(sessionStopRequested)return;
+        const live=state.sessions.find(x=>x.id===activeSessionId);
+        if(!live||live.status!=='Counting'){showScannerEnded();return;}
         const code=String(decodedText||'').trim();
         if(!code)return;
         if(code===lastScannedBarcode)return;
@@ -460,6 +462,7 @@ async function logout(){
   sessionStorage.removeItem('stockflow_scanner_session_code');
   currentUser=null;
   activeSessionId=null;
+  sessionStopRequested=false;
   $('appShell').classList.add('hidden');
   $('loginScreen').classList.remove('hidden');
   setLoginMode('login');
@@ -817,8 +820,8 @@ async function confirmImport(){
 
 function cancelImport(){pendingImport=[];if($('importPreview')){$('importPreview').classList.add('hidden');$('importPreview').innerHTML=''}if($('excelFile'))$('excelFile').value=''}
 function downloadTemplate(){const headers=[{'Barcode':'','Mã sản phẩm':'','Tên sản phẩm':'','Quy cách đóng gói lớn':'','Quy cách đóng gói nhỏ':''}];const ws=XLSX.utils.json_to_sheet(headers),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Products');XLSX.writeFile(wb,'StockFlow_Product_Template.xlsx')}
-function renderCreateSession(){const active=state.sessions.filter(s=>s.status==='Counting'),history=state.sessions.filter(s=>s.status!=='Counting').sort((a,b)=>(b.endedAt||b.createdAt)-(a.endedAt||a.createdAt));return `<div class="page-head"><div><div class="eyebrow">COUNTING SESSION</div><h1>Tạo Phiên kiểm kê</h1><p>Tạo mã phiên 6 số để nhân viên đăng nhập và scan.</p></div><button class="btn btn-primary" onclick="createSessionModal()">＋ Tạo phiên mới</button></div><div class="card" style="margin-bottom:18px"><div class="section-head"><div><div class="section-title">Phiên đang kiểm kê</div><div class="section-sub">Timer tính từ lúc tạo đến thời điểm kết thúc</div></div></div><div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Tên phiên</th><th>Bắt đầu</th><th>Timer</th><th>Scan</th><th>Thao tác</th></tr></thead><tbody>${active.map(s=>`<tr><td><b class="badge badge-blue">${esc(s.code)}</b></td><td>${esc(s.storeCode)}</td><td>${esc(s.name||'Kiểm kê')}</td><td>${fmtDate(s.createdAt)}</td><td><span class="live-timer" data-created="${s.createdAt}">00:00:00</span></td><td>${num(sessionStats(s).scans)}</td><td><button class="btn btn-danger btn-sm" onclick="endSession('${s.id}')">Kết thúc phiên</button></td></tr>`).join('')||emptyRow(7,'Chưa có phiên đang kiểm kê')}</tbody></table></div></div><div class="card"><div class="section-head"><div><div class="section-title">Lịch sử phiên</div></div></div><div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Bắt đầu</th><th>Kết thúc</th><th>Scan</th><th>Trạng thái</th></tr></thead><tbody>${history.map(s=>`<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.storeCode)}</td><td>${fmtDate(s.createdAt)}</td><td>${fmtDate(s.endedAt)}</td><td>${num(sessionStats(s).scans)}</td><td>${statusBadge(s)}</td></tr>`).join('')||emptyRow(6,'Chưa có lịch sử')}</tbody></table></div></div>`}
-function openCreateSession(){showModal('Tạo phiên kiểm kê',`<form id="sessionForm" onsubmit="submitCreateSession(event)"><div class="field"><label>Mã cửa hàng *</label><input class="input" id="newStore" required placeholder="Ví dụ: HCM01" maxlength="30"></div><div class="hint">Mã phiên 6 chữ số sẽ được tạo tự động. Dữ liệu sẽ lưu trên Supabase.</div><div class="modal-foot"><button type="button" class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary">Tạo phiên</button></div></form>`)}
+function renderCreateSession(){const active=state.sessions.filter(s=>s.status==='Counting'),history=state.sessions.filter(s=>s.status!=='Counting').sort((a,b)=>(b.endedAt||b.createdAt)-(a.endedAt||a.createdAt));return `<div class="page-head"><div><div class="eyebrow">COUNTING SESSION</div><h1>Tạo Phiên kiểm kê</h1><p>Tạo mã phiên 6 số để nhân viên đăng nhập và scan.</p></div><button class="btn btn-primary" onclick="createSessionModal()">＋ Tạo phiên mới</button></div><div class="card" style="margin-bottom:18px"><div class="section-head"><div><div class="section-title">Phiên đang kiểm kê</div><div class="section-sub">Timer tính từ lúc tạo đến thời điểm kết thúc</div></div></div><div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Tên phiên</th><th>Bắt đầu</th><th>Timer</th><th>Scan</th><th>Thao tác</th></tr></thead><tbody>${active.map(s=>`<tr><td><b class="badge badge-blue">${esc(s.code)}</b></td><td>${esc(s.storeCode)}</td><td>${esc(s.name||'Kiểm kê')}</td><td>${fmtDate(s.createdAt)}</td><td><span class="live-timer" data-created="${s.createdAt}">00:00:00</span></td><td>${num(sessionStats(s).scans)}</td><td><button class="btn btn-danger btn-sm" onclick="stopSession('${s.id}')">Dừng phiên</button></td></tr>`).join('')||emptyRow(7,'Chưa có phiên đang kiểm kê')}</tbody></table></div></div><div class="card"><div class="section-head"><div><div class="section-title">Lịch sử phiên</div></div></div><div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Bắt đầu</th><th>Kết thúc</th><th>Scan</th><th>Trạng thái</th></tr></thead><tbody>${history.map(s=>`<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.storeCode)}</td><td>${fmtDate(s.createdAt)}</td><td>${fmtDate(s.endedAt)}</td><td>${num(sessionStats(s).scans)}</td><td>${statusBadge(s)}</td></tr>`).join('')||emptyRow(6,'Chưa có lịch sử')}</tbody></table></div></div>`}
+function openCreateSession(){showModal('Tạo phiên kiểm kê',`<form id="sessionForm" onsubmit="submitCreateSession(event)"><div class="field"><label>Mã cửa hàng *</label><input class="input" id="newStore" required placeholder="Ví dụ: HCM01" maxlength="30"></div><div class="modal-foot"><button type="button" class="btn btn-secondary" onclick="closeModal()">Hủy</button><button class="btn btn-primary">Tạo phiên</button></div></form>`)}
 async function submitCreateSession(e){
  e.preventDefault();
  if(!isAdministrator())return toast('Chỉ Administrator mới được tạo phiên.','error');
@@ -839,18 +842,47 @@ async function submitCreateSession(e){
  }catch(err){toast('Không thể tạo phiên: '+err.message,'error')}
 }
 
-async function endSession(id){
+async function stopSession(id){
  const s=state.sessions.find(x=>x.id===id);
  if(!s||s.status!=='Counting')return;
- if(!isAdministrator())return toast('Chỉ Administrator mới được kết thúc phiên.','error');
- if(!confirm(`Kết thúc phiên ${s.code}?`))return;
+ if(!isAdministrator())return toast('Chỉ Administrator mới được dừng phiên.','error');
+ if(!confirm(`Dừng phiên ${s.code}? Tất cả scanner trong phiên sẽ dừng.`))return;
+
+ // Chặn thao tác scan ngay tại client này trước khi cập nhật database.
+ if(id===activeSessionId){
+   sessionStopRequested=true;
+   scanProduct=null;
+   try{await stopStandaloneCamera()}catch(e){}
+   try{await stopCamera()}catch(e){}
+ }
+
  try{
-   const {data,error}=await supabaseClient.rpc('admin_update_session_status',{p_admin_user_id:currentUser.id,p_session_id:id,p_status:'Completed'});
+   const {data,error}=await supabaseClient.rpc('admin_update_session_status',{
+     p_admin_user_id:currentUser.id,
+     p_session_id:id,
+     p_status:'Completed'
+   });
    if(error)throw error;
    const result=Array.isArray(data)?data[0]:data;
-   if(!result?.success)throw new Error(result?.message||'Không thể kết thúc phiên.');
-   await refreshData();toast('Đã kết thúc phiên.','success');
- }catch(e){toast('Không thể kết thúc phiên: '+e.message,'error')}
+   if(!result?.success)throw new Error(result?.message||'Không thể dừng phiên.');
+
+   const local=state.sessions.find(x=>x.id===id);
+   if(local){
+     local.status='Completed';
+     local.completedAt=Date.now();
+     local.updatedAt=Date.now();
+   }
+
+   if(id===activeSessionId && currentUser?.role==='Scanner'){
+     showScannerEnded();
+   }else{
+     await refreshData();
+     toast('Đã dừng phiên. Tất cả scanner của phiên sẽ dừng.','success');
+   }
+ }catch(e){
+   sessionStopRequested=false;
+   toast('Không thể dừng phiên: '+(e.message||e),'error');
+ }
 }
 
 function statusBadge(s){return s.status==='Counting'?'<span class="badge badge-green">● Đang kiểm kê</span>':s.status==='Review'?'<span class="badge badge-amber">◷ Chờ duyệt</span>':s.status==='Completed'?'<span class="badge badge-blue">✓ Hoàn thành</span>':'<span class="badge badge-gray">🔒 Đã khóa</span>'}
@@ -990,6 +1022,7 @@ async function openStandaloneScannerByCode(code,autoStart=true){
   if(!session||session.success===false)throw new Error(session?.message||'Không tìm thấy phiên hoặc phiên đã kết thúc.');
 
   activeSessionId=session.id;
+  sessionStopRequested=false;
   currentUser={id:null,username:'Scanner',role:'Scanner',isActive:true};
   sessionStorage.setItem('stockflow_scanner_session_code',code);
 
@@ -1001,7 +1034,6 @@ async function openStandaloneScannerByCode(code,autoStart=true){
   document.body.classList.add('scanner-only');
 
   if(autoStart){
-    // Try immediately. On mobile this will request camera permission.
     setTimeout(()=>startStandaloneCamera(),120);
   }
 }
@@ -1011,7 +1043,7 @@ function renderStandaloneScanner(){
   const root=$('standaloneScannerContent');
   if(!root)return;
   if(!s||s.status!=='Counting'){
-    root.innerHTML=`<div class="standalone-card"><div class="warning-note"><b>Phiên đã kết thúc hoặc bị khóa.</b><div style="margin-top:8px">Mã phiên: ${esc(s?.code||getScanSessionCodeFromUrl())}</div></div></div>`;
+    showScannerEnded();
     return;
   }
 
@@ -1064,6 +1096,9 @@ function renderStandaloneScanner(){
 }
 
 async function startStandaloneCamera(){
+  if(sessionStopRequested)return;
+  const current=state.sessions.find(x=>x.id===activeSessionId);
+  if(!current||current.status!=='Counting'){showScannerEnded();return;}
   if(scanner)return;
   const reader=$('standaloneReader');
   if(!reader)return toast('Không tìm thấy vùng camera.','error');
@@ -1098,6 +1133,9 @@ async function startStandaloneCamera(){
         {facingMode:'environment'},
         {fps:10,qrbox:{width:250,height:180},aspectRatio:1.777778},
         decodedText=>{
+          if(sessionStopRequested)return;
+          const live=state.sessions.find(x=>x.id===activeSessionId);
+          if(!live||live.status!=='Counting'){showScannerEnded();return;}
           const code=String(decodedText||'').trim();
           if(!code||code===lastScannedBarcode)return;
           lastScannedBarcode=code;
@@ -1126,6 +1164,8 @@ async function stopStandaloneCamera(){
 }
 
 function processStandaloneBarcode(code){
+  const live=state.sessions.find(x=>x.id===activeSessionId);
+  if(sessionStopRequested||!live||live.status!=='Counting'){showScannerEnded();return;}
   const p=state.products.find(x=>x.barcode===String(code).trim());
   const panel=$('standaloneScanProductPanel');
   if(!panel)return;
@@ -1172,6 +1212,7 @@ function standaloneLookupBarcode(){
 
 async function confirmStandaloneScan(){
   const s=state.sessions.find(x=>x.id===activeSessionId);
+  if(sessionStopRequested){showScannerEnded();return;}
   if(!s||s.status!=='Counting')return toast('Phiên đã kết thúc hoặc bị khóa.','error');
   if(!scanProduct||scanProduct.notFound)return toast('Chưa có sản phẩm hợp lệ.','error');
 
@@ -1182,6 +1223,9 @@ async function confirmStandaloneScan(){
   if(!Number.isInteger(large)||large<1||!Number.isInteger(small)||small<1)return toast('Quy cách phải là số nguyên > 0.','error');
 
   try{
+    if(sessionStopRequested)return showScannerEnded();
+    const latest=state.sessions.find(x=>x.id===activeSessionId);
+    if(!latest||latest.status!=='Counting')return showScannerEnded();
     const {data,error}=await supabaseClient.rpc('scanner_save_scan',{
       p_session_code:s.code,p_product_id:scanProduct.id,p_barcode:scanProduct.barcode,
       p_qty:qty,p_pack_large:large,p_pack_small:small
@@ -1210,6 +1254,7 @@ function renderStandaloneLive(){
 }
 
 function exitStandaloneScanner(){
+  sessionStopRequested=false;
   stopStandaloneCamera();
   sessionStorage.removeItem('stockflow_scanner_session_code');
   activeSessionId=null;
@@ -1222,7 +1267,22 @@ function exitStandaloneScanner(){
 
 function renderScanner(){return renderScannerOnly()}
 function renderScannerOnly(){document.body.classList.add('scanner-only');const s=state.sessions.find(x=>x.id===activeSessionId);if(!s||s.status!=='Counting'){showScannerEnded();return}document.body.classList.add('scanner-only');$('mainContent').innerHTML=`<div class="scanner-mobile"><div class="session-banner"><div><div class="small muted">PHIÊN KIỂM KÊ · ${esc(s.storeCode)}</div><div class="code">${esc(s.code)}</div><div class="small">Nhân viên: <b>${esc(currentUser.username)}</b></div></div><span class="badge badge-green">● Đang kiểm kê</span></div><div class="scan-layout"><div class="card"><div class="section-head"><div><div class="section-title">Quét barcode</div><div class="section-sub">Đưa barcode vào khung camera</div></div></div><div class="section-body"><div class="camera-box"><div id="cameraPlaceholder" class="camera-placeholder"><div class="cam-icon">⌗</div><strong>Camera chưa khởi động</strong><span class="small">Cho phép quyền camera nếu trình duyệt hỏi</span></div><div id="reader" style="width:100%"></div></div><div class="inline-actions scan-actions"><button class="btn btn-primary" id="startCameraBtn" onclick="startCamera()">▶ Bật camera</button><button class="btn btn-secondary" id="stopCameraBtn" onclick="stopCamera()" disabled>■ Dừng</button></div><div class="field" style="margin-top:16px"><label>Hoặc nhập barcode</label><div class="inline-actions"><input class="input" id="manualBarcode" inputmode="numeric" placeholder="Barcode..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupBarcode()}"><button class="btn btn-secondary" onclick="lookupBarcode()">Tìm</button></div></div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Thông tin sản phẩm</div><div class="section-sub">Quét xong nhập quy cách và lưu</div></div></div><div class="section-body" id="scanProductPanel"><div class="empty"><div class="empty-icon">⌗</div><strong>Chưa quét barcode</strong></div></div></div></div><div class="card" style="margin-top:18px"><div class="section-head"><div><div class="section-title">Dữ liệu scan trong phiên</div><div class="table-count" id="scannerLiveCount">Realtime trong phiên hiện tại</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>Barcode</th><th>Tên sản phẩm</th><th>Quy cách lớn</th><th>Quy cách nhỏ</th><th>Qty</th></tr></thead><tbody id="scannerLiveBody"></tbody></table></div></div></div>`;renderScannerLive()}
-function showScannerEnded(){stopCamera();document.body.classList.add('scanner-only');$('mainContent').innerHTML=`<div class="scanner-ended"><div class="end-icon">✓</div><h1>Cảm ơn vì sự làm việc hăng say của bạn.</h1><p>Phiên kiểm kê đã kết thúc. Bạn không thể ghi thêm dữ liệu vào phiên này.</p><button class="btn btn-primary" onclick="logout()">Quay lại đăng nhập</button></div>`}
+async function showScannerEnded(){
+  sessionStopRequested=true;
+  scanProduct=null;
+  lastScannedBarcode='';
+  try{await stopStandaloneCamera()}catch(e){}
+  try{await stopCamera()}catch(e){}
+  document.body.classList.add('scanner-only');
+
+  const content=`<div class="scanner-ended"><div class="ended-icon">✓</div><h1>Cảm ơn bạn!</h1><p>Phiên kiểm kê đã dừng. Bạn không thể ghi thêm dữ liệu.</p><button class="btn btn-primary" onclick="logout()">Quay lại màn hình chờ</button></div>`;
+
+  if($('scannerStandaloneScreen')){
+    $('scannerStandaloneScreen').classList.remove('hidden');
+    $('standaloneScannerContent').innerHTML=content;
+  }
+  if($('mainContent'))$('mainContent').innerHTML=content;
+}
 function renderScannerLive(){const s=state.sessions.find(x=>x.id===activeSessionId);if(!s)return;const tx=sessionTransactions(s).sort((a,b)=>b.createdAt-a.createdAt);if($('scannerLiveBody'))$('scannerLiveBody').innerHTML=tx.slice(0,100).map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td><b>${esc(t.barcode)}</b></td><td>${esc(t.productSnapshot?.name||'')}</td><td>${num(t.productSnapshot?.packLarge||1)}</td><td>${num(t.productSnapshot?.packSmall||1)}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có dữ liệu scan')}
 function lookupBarcode(){const s=state.sessions.find(x=>x.id===activeSessionId);if(!s||s.status!=='Counting')return checkScannerSession();const code=$('manualBarcode').value.trim();if(!code)return toast('Nhập barcode.','error');processBarcode(code)}
 function processBarcode(code){const barcode=String(code).trim();const p=state.products.find(x=>x.barcode===barcode);scanProduct=p?{...p}:{barcode,notFound:true};$('scanProductPanel').innerHTML=scanProductMarkup(scanProduct);if(!p)toast('Barcode chưa có trong Product Catalog.','error');else{setTimeout(()=>{$('largeSpec')?.focus()},50);navigator.vibrate?.(70)}}
@@ -1268,7 +1328,6 @@ function quickScanSubmit(e){
   if(!sess)return toast('Không tìm thấy phiên.','error');
   if(sess.status!=='Counting')return toast('Phiên không ở trạng thái kiểm kê.','error');
 
-  // Luôn mở Scanner độc lập, không chuyển sang tab Scanner trong Admin app.
   const u=new URL(window.location.href);
   u.searchParams.set('scan',sess.code);
   closeModal();
@@ -1280,7 +1339,21 @@ function showModal(title,body){$('modalRoot').innerHTML=`<div class="modal-backd
 function closeModal(){$('modalRoot').innerHTML=''}
 function exportRows(rows,filename,sheet='Data'){if(!rows.length)return toast('Không có dữ liệu để export.','error');if(window.XLSX){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),sheet);XLSX.writeFile(wb,filename)}else{const h=Object.keys(rows[0]),csv=[h,...rows.map(r=>h.map(k=>r[k]??''))].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=filename.replace(/\.xlsx?$/i,'.csv');a.click()}}
 function emptyRow(cols,msg){return `<tr><td colspan="${cols}"><div class="empty"><strong>${msg}</strong></div></td></tr>`}
-function updateTimers(){document.querySelectorAll('.live-timer').forEach(el=>{const start=Number(el.dataset.created),sec=Math.max(0,Math.floor((Date.now()-start)/1000));el.textContent=[Math.floor(sec/3600),Math.floor(sec%3600/60),sec%60].map(x=>String(x).padStart(2,'0')).join(':')});if(currentUser?.role==='Scanner'){const s=state.sessions.find(x=>x.id===activeSessionId);if(!s||s.status!=='Counting'){showScannerEnded()}else{renderScannerLive()}}else if(currentUser){const active=state.sessions.find(s=>s.status==='Counting'&&s.endsAt&&Date.now()>=s.endsAt);if(active){active.status='Completed';active.endedAt=Date.now();saveState();renderPage();toast(`Phiên ${active.code} đã hết thời gian.`,'error')}}}
+function updateTimers(){
+  document.querySelectorAll('.live-timer').forEach(el=>{
+    const start=Number(el.dataset.created),sec=Math.max(0,Math.floor((Date.now()-start)/1000));
+    el.textContent=[Math.floor(sec/3600),Math.floor(sec%3600/60),sec%60].map(x=>String(x).padStart(2,'0')).join(':')
+  });
+  if(currentUser?.role==='Scanner'){
+    const s=state.sessions.find(x=>x.id===activeSessionId);
+    if(!s||s.status!=='Counting'){
+      if(!sessionStopRequested)showScannerEnded();
+    }else if(!sessionStopRequested){
+      renderScannerLive();
+      if($('standaloneLiveBody'))renderStandaloneLive();
+    }
+  }
+}
 setInterval(updateTimers,1000);
 async function openInitialAdminModal(){
   showModal('Thiết lập Administrator đầu tiên',`<form id="initialAdminForm">
@@ -1349,7 +1422,6 @@ async function openInitialAdminModal(){
       }
       sessionStorage.removeItem('stockflow_scanner_session_code');
     }
-    await ensureFirstAdministrator();
   }catch(e){
     console.error(e);
     toast('Không thể khởi tạo Supabase: '+(e.message||e),'error');
