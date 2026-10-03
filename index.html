@@ -403,32 +403,48 @@ function cameraSecurityMessage(){
 async function startNativeCamera(readerId,onBarcode){
   const reader=$(readerId); if(!reader)throw new Error('Không tìm thấy vùng camera.');
   const security=cameraSecurityMessage(); if(security)throw new Error(security);
-  if(nativeCameraStream) return true;
-  const stream=await navigator.mediaDevices.getUserMedia({
-    audio:false,
-    video:{facingMode:{ideal:'environment'},width:{ideal:1920,min:640},height:{ideal:1080,min:480}}
-  });
+  await stopCamera();
+  reader.innerHTML='<video id="nativeCameraVideo" autoplay playsinline muted webkit-playsinline style="display:block;width:100%;height:auto;min-height:300px;object-fit:contain;background:#000;border-radius:12px"></video>';
+  const video=$('nativeCameraVideo'); if(!video)throw new Error('Không tạo được khung video camera.');
+  nativeCameraVideo=video;
+  video.setAttribute('autoplay',''); video.setAttribute('playsinline',''); video.setAttribute('webkit-playsinline',''); video.muted=true;
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280,min:640},height:{ideal:720,min:480}}
+    });
+  }catch(e){
+    reader.innerHTML='';nativeCameraVideo=null;throw e;
+  }
   nativeCameraStream=stream;
-  reader.innerHTML='<video id="nativeCameraVideo" autoplay playsinline muted style="display:block;width:100%;height:auto;min-height:280px;object-fit:cover;background:#000"></video>';
-  const video=$('nativeCameraVideo'); nativeCameraVideo=video; video.srcObject=stream;
-  await video.play();
-  if(!('BarcodeDetector' in window)) throw new Error('BarcodeDetector không được trình duyệt hỗ trợ.');
-  const detector=new BarcodeDetector({formats:['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e']});
+  video.srcObject=stream;
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('Camera đã được cấp quyền nhưng video không khởi động. Hãy thử đóng/mở lại camera.')),5000);
+    video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};
+  });
+  try{await video.play();}catch(e){
+    try{video.muted=true;await video.play();}catch(e2){throw new Error('Không thể phát hình camera trên trình duyệt này. Hãy thử Chrome/Safari và cấp quyền Camera.');}
+  }
+  if(!('BarcodeDetector' in window))return true;
+  let detector;
+  try{
+    const formats=['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e'];
+    const supported=typeof BarcodeDetector.getSupportedFormats==='function'?await BarcodeDetector.getSupportedFormats():formats;
+    const usable=formats.filter(f=>supported.includes(f));
+    detector=usable.length?new BarcodeDetector({formats:usable}):new BarcodeDetector();
+  }catch(e){return true;}
   let busy=false;
   nativeScanTimer=setInterval(async()=>{
     if(busy||!nativeCameraVideo||nativeCameraVideo.readyState<2||sessionStopRequested)return;
     busy=true;
     try{
       const found=await detector.detect(nativeCameraVideo);
-      if(found?.length){
-        const code=String(found[0].rawValue||'').trim();
-        if(code)onBarcode(code);
-      }
+      if(found?.length){const code=String(found[0].rawValue||'').trim();if(code)onBarcode(code);}
     }catch(e){}finally{busy=false}
   },120);
   return true;
 }
-
 function getBarcodeScannerConfig(){
   const supported=window.Html5QrcodeSupportedFormats||{};
   const names=['CODE_128','CODE_39','CODE_93','CODABAR','EAN_13','EAN_8','ITF','UPC_A','UPC_E'];
@@ -466,20 +482,16 @@ async function startCamera(){
     processBarcode(code);try{navigator.vibrate?.(50)}catch(e){}
   };
   try{
-    // Ưu tiên Camera API native trên điện thoại; nếu không có BarcodeDetector thì dùng html5-qrcode.
-    try{
-      await startNativeCamera('reader',handleCode);
+    if(typeof Html5Qrcode!=='undefined'){
+      scanner=new Html5Qrcode('reader',{verbose:false});
+      const cfg=getBarcodeScannerConfig();
+      await scanner.start({facingMode:'environment'},cfg,handleCode,()=>{});
       if(placeholder)placeholder.classList.add('hidden');
       if(stopBtn)stopBtn.disabled=false;
       toast('Camera đã bật. Đưa barcode vào khung scan.','success');
       return;
-    }catch(nativeError){
-      console.warn('Native camera unavailable, fallback html5-qrcode:',nativeError);
-      if(nativeCameraStream)await stopCamera();
     }
-    if(typeof Html5Qrcode==='undefined')throw new Error('Thư viện camera chưa tải được. Kiểm tra Internet rồi thử lại.');
-    scanner=new Html5Qrcode('reader');
-    await scanner.start({facingMode:{ideal:'environment'}},getBarcodeScannerConfig(),handleCode,()=>{});
+    await startNativeCamera('reader',handleCode);
     if(placeholder)placeholder.classList.add('hidden');
     if(stopBtn)stopBtn.disabled=false;
     toast('Camera đã bật. Đưa barcode vào khung scan.','success');
@@ -488,10 +500,10 @@ async function startCamera(){
     if(startBtn)startBtn.disabled=false;
     const msg=String(e?.message||e);
     if(/permission|notallowed|denied/i.test(msg))toast('Chưa được cấp quyền Camera. Hãy cho phép Camera trong trình duyệt và thử lại.','error');
-    else toast(msg,'error');
+    else if(/secure|https|file:/i.test(msg))toast('Camera trên điện thoại cần mở trang bằng HTTPS. Không dùng file:// trực tiếp.','error');
+    else toast('Không mở được Camera: '+msg,'error');
   }
 }
-
 async function logout(){
   await stopCamera();
   if(realtimeChannel){
@@ -1153,24 +1165,19 @@ async function startStandaloneCamera(){
     processStandaloneBarcode(code);try{navigator.vibrate?.(50)}catch(e){}
   };
   try{
-    try{
-      await startNativeCamera('standaloneReader',handleCode);
+    if(typeof Html5Qrcode!=='undefined'){
+      scanner=new Html5Qrcode('standaloneReader',{verbose:false});
+      await scanner.start({facingMode:'environment'},getBarcodeScannerConfig(),handleCode,()=>{});
       placeholder?.classList.add('hidden');if(stopBtn)stopBtn.disabled=false;return;
-    }catch(nativeError){
-      console.warn('Native standalone camera unavailable, fallback:',nativeError);
-      if(nativeCameraStream)await stopCamera();
     }
-    if(typeof Html5Qrcode==='undefined')throw new Error('Thư viện camera chưa tải được. Kiểm tra Internet rồi thử lại.');
-    scanner=new Html5Qrcode('standaloneReader');
-    await scanner.start({facingMode:{ideal:'environment'}},getBarcodeScannerConfig(),handleCode,()=>{});
+    await startNativeCamera('standaloneReader',handleCode);
     placeholder?.classList.add('hidden');if(stopBtn)stopBtn.disabled=false;
   }catch(e){
     await stopCamera();if(startBtn)startBtn.disabled=false;if(stopBtn)stopBtn.disabled=true;
     const msg=String(e?.message||e);
-    toast(/permission|notallowed|denied/i.test(msg)?'Chưa được cấp quyền Camera. Hãy bấm "Bật camera" và chọn Cho phép.':msg,'error');
+    toast(/permission|notallowed|denied/i.test(msg)?'Chưa được cấp quyền Camera. Hãy bấm "Bật camera" và chọn Cho phép.':(/secure|https|file:/i.test(msg)?'Camera trên điện thoại cần mở trang bằng HTTPS. Không dùng file:// trực tiếp.':'Không mở được Camera: '+msg),'error');
   }
 }
-
 async function stopStandaloneCamera(){
   await stopCamera();
 }
