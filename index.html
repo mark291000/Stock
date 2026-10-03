@@ -394,6 +394,27 @@ async function stopCamera(){
   if(stopBtn)stopBtn.disabled=true;
 }
 
+function getBarcodeScannerConfig(){
+  const supported=window.Html5QrcodeSupportedFormats||{};
+  const names=['CODE_128','CODE_39','CODE_93','CODABAR','EAN_13','EAN_8','ITF','UPC_A','UPC_E'];
+  const formats=names.map(name=>supported[name]).filter(v=>typeof v!=='undefined');
+  const width=Math.min(420,Math.max(280,Math.floor(window.innerWidth*0.82)));
+  const height=Math.max(120,Math.min(180,Math.floor(width*0.42)));
+  return {
+    fps:15,
+    qrbox:{width,height},
+    aspectRatio:2.0,
+    disableFlip:true,
+    experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+    ...(formats.length?{formatsToSupport:formats}:{}),
+    videoConstraints:{
+      facingMode:{ideal:'environment'},
+      width:{ideal:1280,min:640},
+      height:{ideal:720,min:480}
+    }
+  };
+}
+
 async function startCamera(){
   if(scanner)return;
   const reader=$('reader');
@@ -409,14 +430,10 @@ async function startCamera(){
 
   try{
     scanner=new Html5Qrcode('reader');
-    const config={
-      fps:10,
-      qrbox:{width:250,height:180},
-      aspectRatio:1.777778
-    };
+    const config=getBarcodeScannerConfig();
 
     await scanner.start(
-      {facingMode:'environment'},
+      {facingMode:{ideal:'environment'}},
       config,
       decodedText=>{
         if(sessionStopRequested)return;
@@ -888,7 +905,7 @@ async function stopSession(id){
 function statusBadge(s){return s.status==='Counting'?'<span class="badge badge-green">● Đang kiểm kê</span>':s.status==='Review'?'<span class="badge badge-amber">◷ Chờ duyệt</span>':s.status==='Completed'?'<span class="badge badge-blue">✓ Hoàn thành</span>':'<span class="badge badge-gray">🔒 Đã khóa</span>'}
 function renderSessions(){const list=[...state.sessions].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));return `<div class="page-head"><div><div class="eyebrow">STOCK TAKE</div><h1>Quản lý tồn kho</h1><p>Tạo phiên kiểm kê và theo dõi dữ liệu scan.</p></div><button class="btn btn-primary" onclick="openCreateSession()">＋ Tạo phiên</button></div><div class="card"><div class="section-head"><div><div class="section-title">Danh sách phiên</div><div class="table-count">${num(list.length)} phiên</div></div><select class="input" style="width:180px" onchange="sessionFilter=this.value;renderPage()"><option value="all" ${sessionFilter==='all'?'selected':''}>Tất cả</option><option value="Counting" ${sessionFilter==='Counting'?'selected':''}>Đang kiểm kê</option><option value="Review" ${sessionFilter==='Review'?'selected':''}>Chờ duyệt</option><option value="Completed" ${sessionFilter==='Completed'?'selected':''}>Hoàn thành</option><option value="Locked" ${sessionFilter==='Locked'?'selected':''}>Đã khóa</option></select></div><div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Người tạo</th><th>Ngày tạo</th><th>Scan</th><th>Qty</th><th>Trạng thái</th><th></th></tr></thead><tbody>${list.filter(s=>sessionFilter==='all'||s.status===sessionFilter).map(s=>{const st=sessionStats(s);return `<tr><td><strong style="color:var(--blue);letter-spacing:2px">${esc(s.code)}</strong></td><td>${esc(s.storeCode)}</td><td>${esc(s.createdBy)}</td><td>${fmtDate(s.createdAt)}</td><td>${num(st.transactions)}</td><td><strong>${num(st.total)}</strong></td><td>${statusBadge(s)}</td><td><button class="btn btn-light btn-sm" onclick="openSession('${s.id}')">Mở</button></td></tr>`}).join('')||emptyRow(8,'Chưa có phiên phù hợp')}</tbody></table></div></div>`}
 function openSession(id){activeSessionId=id;currentPage='sessions';renderSessionDetail(id)}
-function renderSessionDetail(id){const s=state.sessions.find(x=>x.id===id);if(!s){navigate('sessions');return}const tx=productsForSession(s).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)),st=sessionStats(s);$('mainContent').innerHTML=`<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">← Danh sách phiên</button><div class="eyebrow" style="margin-top:14px">SESSION DETAIL</div><h1>${esc(s.code)} · ${esc(s.storeCode)}</h1><p>Tạo bởi ${esc(s.createdBy)} · ${fmtDate(s.createdAt)}</p></div><div class="inline-actions"><button class="btn btn-primary" onclick="startScanFor('${s.id}')">⌗ Scan sản phẩm</button>${s.status==='Counting'?`<button class="btn btn-secondary" onclick="changeSessionStatus('${s.id}','Review')">Gửi duyệt</button>`:''}${s.status==='Review'?`<button class="btn btn-primary" onclick="changeSessionStatus('${s.id}','Completed')">Hoàn thành</button>`:''}${s.status==='Completed'?`<button class="btn btn-danger" onclick="changeSessionStatus('${s.id}','Locked')">Khóa phiên</button>`:''}${s.status==='Locked'&&currentUser.role==='Administrator'?`<button class="btn btn-secondary" onclick="changeSessionStatus('${s.id}','Counting')">Mở lại</button>`:''}</div></div><div class="session-banner"><div><div class="small muted">MÃ PHIÊN</div><div class="code">${esc(s.code)}</div><div class="small muted">Store: ${esc(s.storeCode)}</div></div><div>${statusBadge(s)}</div></div><div class="stats"><div class="card stat"><div class="stat-top">Mã sản phẩm đã scan</div><div class="stat-value">${num(st.count)}</div></div><div class="card stat"><div class="stat-top">Tổng Qty</div><div class="stat-value">${num(st.total)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(st.transactions)}</div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Scan history</div><div class="section-sub">Dữ liệu lấy trực tiếp từ Supabase</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>User</th><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${tx.map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có giao dịch scan')}</tbody></table></div></div>`}
+function renderSessionDetail(id){const s=state.sessions.find(x=>x.id===id);if(!s){navigate('sessions');return}const tx=productsForSession(s).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)),st=sessionStats(s);$('mainContent').innerHTML=`<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">← Danh sách phiên</button><div class="eyebrow" style="margin-top:14px">SESSION DETAIL</div><h1>${esc(s.code)} · ${esc(s.storeCode)}</h1><p>Tạo bởi ${esc(s.createdBy)} · ${fmtDate(s.createdAt)}</p></div><div class="inline-actions"><button class="btn btn-primary" onclick="startScanFor('${s.id}')">⌗ Scan sản phẩm</button>${s.status==='Counting'&&currentUser?.role==='Administrator'?`<button class="btn btn-danger" onclick="stopSession('${s.id}')">Kết thúc phiên</button>`:''}${s.status==='Counting'?`<button class="btn btn-secondary" onclick="changeSessionStatus('${s.id}','Review')">Gửi duyệt</button>`:''}${s.status==='Review'?`<button class="btn btn-primary" onclick="changeSessionStatus('${s.id}','Completed')">Hoàn thành</button>`:''}${s.status==='Completed'?`<button class="btn btn-danger" onclick="changeSessionStatus('${s.id}','Locked')">Khóa phiên</button>`:''}${s.status==='Locked'&&currentUser.role==='Administrator'?`<button class="btn btn-secondary" onclick="changeSessionStatus('${s.id}','Counting')">Mở lại</button>`:''}</div></div><div class="session-banner"><div><div class="small muted">MÃ PHIÊN</div><div class="code">${esc(s.code)}</div><div class="small muted">Store: ${esc(s.storeCode)}</div></div><div>${statusBadge(s)}</div></div><div class="stats"><div class="card stat"><div class="stat-top">Mã sản phẩm đã scan</div><div class="stat-value">${num(st.count)}</div></div><div class="card stat"><div class="stat-top">Tổng Qty</div><div class="stat-value">${num(st.total)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(st.transactions)}</div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Scan history</div><div class="section-sub">Dữ liệu lấy trực tiếp từ Supabase</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>User</th><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${tx.map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có giao dịch scan')}</tbody></table></div></div>`}
 async function changeSessionStatus(id,status){
  const s=state.sessions.find(x=>x.id===id);if(!s)return;
  if(!isAdministrator())return toast('Chỉ Administrator mới được thay đổi trạng thái phiên.','error');
@@ -1110,8 +1127,8 @@ async function startStandaloneCamera(){
   try{
     scanner=new Html5Qrcode('standaloneReader');
     await scanner.start(
-      {facingMode:{exact:'environment'}},
-      {fps:10,qrbox:{width:250,height:180},aspectRatio:1.777778},
+      {facingMode:{ideal:'environment'}},
+      getBarcodeScannerConfig(),
       decodedText=>{
         const code=String(decodedText||'').trim();
         if(!code||code===lastScannedBarcode)return;
@@ -1130,8 +1147,8 @@ async function startStandaloneCamera(){
       if(scanner){try{await scanner.clear()}catch(e){}}
       scanner=new Html5Qrcode('standaloneReader');
       await scanner.start(
-        {facingMode:'environment'},
-        {fps:10,qrbox:{width:250,height:180},aspectRatio:1.777778},
+        {facingMode:{ideal:'environment'}},
+        getBarcodeScannerConfig(),
         decodedText=>{
           if(sessionStopRequested)return;
           const live=state.sessions.find(x=>x.id===activeSessionId);
