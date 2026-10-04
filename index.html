@@ -91,7 +91,7 @@ const SUPABASE_PUBLISHABLE_KEY='sb_publishable_crySob1s3g7IajcgToHV9A_jrqoPcfk';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 
 let state={products:[],sessions:[],transactions:[],stores:[],users:[]};
-let currentUser=null,currentPage='dashboard',loginMode='login',activeSessionId=null,scanner=null,scanProduct=null,lastScannedBarcode='',sessionFilter='all',pendingImport=[],sessionStopRequested=false,scanSessionCode='';
+let currentUser=null,currentPage='dashboard',loginMode='login',activeSessionId=null,scanner=null,scanProduct=null,lastScannedBarcode='',sessionFilter='all',pendingImport=[],sessionStopRequested=false,scanSessionCode='',cameraStream=null,cameraVideo=null,barcodeDetector=null,barcodeLoopActive=false;
 let realtimeChannel=null,scannerRealtimeChannel=null,scannerSessionPoller=null;
 const $=id=>document.getElementById(id);
 const uid=()=>crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -332,6 +332,17 @@ function enterApp(){
   renderPage();
 }
 async function stopCamera(){
+  barcodeLoopActive=false;
+  if(cameraStream){
+    try{cameraStream.getTracks().forEach(t=>t.stop())}catch(e){}
+    cameraStream=null;
+  }
+  if(cameraVideo){
+    try{cameraVideo.pause()}catch(e){}
+    try{cameraVideo.srcObject=null}catch(e){}
+  }
+  cameraVideo=null;
+  barcodeDetector=null;
   try{
     if(scanner){
       const activeScanner=scanner;
@@ -369,18 +380,20 @@ async function startCamera(){
   if(sessionStopRequested)return;
   const live=state.sessions.find(x=>x.id===activeSessionId);
   if(!live||live.status!=='Counting')return showScannerEnded();
-  if(scanner)return;
+  if(scanner||cameraStream||barcodeLoopActive)return;
 
   const reader=$('loginReader');
   if(!reader)return toast('Không tìm thấy vùng camera.','error');
-  if(typeof Html5Qrcode==='undefined')return toast('Thư viện camera chưa tải được. Kiểm tra Internet rồi thử lại.','error');
-
   const startBtn=$('loginStartCameraBtn'),stopBtn=$('loginStopCameraBtn'),placeholder=$('loginCameraPlaceholder');
   if(startBtn)startBtn.disabled=true;
 
   if(!window.isSecureContext && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
     if(startBtn)startBtn.disabled=false;
     return toast(loginCameraErrorMessage(new Error('secure context required')),'error');
+  }
+  if(!navigator.mediaDevices?.getUserMedia){
+    if(startBtn)startBtn.disabled=false;
+    return toast(loginCameraErrorMessage(new Error('getUserMedia unavailable')),'error');
   }
 
   const onScan=decodedText=>{
@@ -390,33 +403,118 @@ async function startCamera(){
     const code=String(decodedText||'').trim();
     if(!code||code===lastScannedBarcode)return;
     lastScannedBarcode=code;
-    setTimeout(()=>{if(lastScannedBarcode===code)lastScannedBarcode=''},1200);
+    setTimeout(()=>{if(lastScannedBarcode===code)lastScannedBarcode=''},900);
     const input=$('loginManualBarcode');
     if(input)input.value=code;
     processLoginBarcode(code);
     try{navigator.vibrate?.(70)}catch(e){}
   };
 
+  // First choice on modern Android/Chrome: native BarcodeDetector + a high-resolution camera stream.
+  // It is considerably faster for 1D barcodes than forcing a generic QR-oriented scan.
+  try{
+    if('BarcodeDetector' in window){
+      const supported=await BarcodeDetector.getSupportedFormats();
+      const formats=['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e','qr_code','data_matrix','pdf417','aztec'].filter(f=>supported.includes(f));
+      if(formats.length){
+        barcodeDetector=new BarcodeDetector({formats});
+        cameraStream=await navigator.mediaDevices.getUserMedia({
+          audio:false,
+          video:{
+            facingMode:{ideal:'environment'},
+            width:{ideal:1920,min:1280},
+            height:{ideal:1080,min:720},
+            frameRate:{ideal:30,min:24}
+          }
+        });
+        cameraVideo=document.createElement('video');
+        cameraVideo.id='loginNativeCamera';
+        cameraVideo.autoplay=true;
+        cameraVideo.muted=true;
+        cameraVideo.playsInline=true;
+        cameraVideo.setAttribute('playsinline','');
+        cameraVideo.style.cssText='display:block;width:100%;height:auto;min-height:250px;object-fit:cover;background:#000;';
+        reader.innerHTML='';
+        reader.appendChild(cameraVideo);
+        cameraVideo.srcObject=cameraStream;
+        await cameraVideo.play();
+        const track=cameraStream.getVideoTracks()[0];
+        try{
+          const caps=track.getCapabilities?.()||{};
+          const advanced={};
+          if(caps.focusMode?.includes('continuous'))advanced.focusMode='continuous';
+          if(caps.exposureMode?.includes('continuous'))advanced.exposureMode='continuous';
+          if(caps.whiteBalanceMode?.includes('continuous'))advanced.whiteBalanceMode='continuous';
+          if(caps.zoom){
+            const z=Math.min(caps.max,Math.max(caps.min,(caps.min||1)+((caps.max-(caps.min||1))*0.22)));
+            advanced.zoom=z;
+          }
+          if(Object.keys(advanced).length)await track.applyConstraints({advanced:[advanced]});
+        }catch(e){console.debug('Camera fine tuning skipped:',e)}
+
+        placeholder?.classList.add('hidden');
+        if(stopBtn)stopBtn.disabled=false;
+        barcodeLoopActive=true;
+        let lastDetect=0;
+        const detectLoop=async(ts)=>{
+          if(!barcodeLoopActive||sessionStopRequested||!cameraVideo||cameraVideo.readyState<2)return;
+          if(ts-lastDetect>=45){
+            lastDetect=ts;
+            try{
+              const results=await barcodeDetector.detect(cameraVideo);
+              if(results?.length){
+                const value=results.find(x=>x.rawValue)?.rawValue;
+                if(value)onScan(value);
+              }
+            }catch(e){/* camera frame can be skipped while autofocus adjusts */}
+          }
+          if(barcodeLoopActive)requestAnimationFrame(detectLoop);
+        };
+        requestAnimationFrame(detectLoop);
+        toast('Camera tốc độ cao đã bật. Giữ barcode rõ nét trong khung.','success');
+        return;
+      }
+    }
+  }catch(nativeError){
+    console.warn('Native BarcodeDetector failed, using html5-qrcode:',nativeError);
+    await stopCamera();
+    if(startBtn)startBtn.disabled=true;
+  }
+
+  // Compatibility fallback: html5-qrcode, configured specifically for 1D barcodes and a wide scan area.
+  if(typeof Html5Qrcode==='undefined'){
+    if(startBtn)startBtn.disabled=false;
+    return toast('Thư viện camera chưa tải được. Kiểm tra Internet rồi thử lại.','error');
+  }
+  const supportedFormats=[
+    'QR_CODE','AZTEC','CODABAR','CODE_39','CODE_93','CODE_128','DATA_MATRIX','EAN_8','EAN_13','ITF','PDF_417','UPC_A','UPC_E'
+  ].map(k=>window.Html5QrcodeSupportedFormats?.[k]).filter(v=>v!==undefined);
   try{
     scanner=new Html5Qrcode('loginReader');
     await scanner.start(
       {facingMode:'environment'},
-      {fps:10,qrbox:{width:250,height:180},aspectRatio:1.777778},
+      {
+        fps:20,
+        qrbox:(w,h)=>({width:Math.max(280,Math.floor(w*0.92)),height:Math.max(100,Math.floor(h*0.42))}),
+        aspectRatio:1.777778,
+        disableFlip:true,
+        ...(supportedFormats.length?{formatsToSupport:supportedFormats}:{}),
+        experimentalFeatures:{useBarCodeDetectorIfSupported:true}
+      },
       onScan,
       ()=>{}
     );
     placeholder?.classList.add('hidden');
     if(stopBtn)stopBtn.disabled=false;
-    toast('Camera đã bật. Đưa barcode vào khung scan.','success');
+    toast('Camera đã bật ở chế độ barcode nhanh.','success');
   }catch(firstError){
     console.warn('Camera environment failed:',firstError);
-    try{if(scanner){try{await scanner.stop()}catch(e){}try{await scanner.clear()}catch(e){}}}catch(e){}
-    scanner=null;
+    try{if(scanner){const old=scanner;scanner=null;try{await old.stop()}catch(e){}try{await old.clear()}catch(e){}}}catch(e){}
     try{
       scanner=new Html5Qrcode('loginReader');
       await scanner.start(
         {facingMode:'user'},
-        {fps:10,qrbox:{width:250,height:180},aspectRatio:1.777778},
+        {fps:15,qrbox:(w,h)=>({width:Math.max(260,Math.floor(w*0.9)),height:Math.max(100,Math.floor(h*0.42))}),disableFlip:true,...(supportedFormats.length?{formatsToSupport:supportedFormats}:{})},
         onScan,
         ()=>{}
       );
@@ -592,23 +690,37 @@ async function exitLoginScanner(){
 }
 
 async function showScannerEnded(){
+  if(sessionStopRequested)return;
   sessionStopRequested=true;
   await stopScannerSessionRealtime();
   scanProduct=null;
   lastScannedBarcode='';
   await stopCamera();
 
-  const area=$('loginScannerArea');
-  if(area){
-    area.classList.remove('hidden');
-    area.innerHTML=`<div class="scanner-ended">
-      <div class="ended-icon">✓</div>
-      <h2>Cảm ơn bạn!</h2>
-      <p>Phiên kiểm kê đã dừng. Bạn không thể ghi thêm dữ liệu.</p>
-      <button class="btn btn-primary" type="button" onclick="exitLoginScanner()">Quay lại màn hình chờ</button>
-    </div>`;
-  }
+  // Only the Scanner is signed out. Never touch the Admin shell/session here.
+  currentUser=null;
+  activeSessionId=null;
+  scanSessionCode='';
+  sessionStorage.removeItem('stockflow_scanner_session_code');
+  $('appShell')?.classList.add('hidden');
+  $('loginScreen')?.classList.remove('hidden');
+  $('loginScannerArea')?.classList.add('hidden');
+  $('loginScannerArea').innerHTML='';
+  $('loginSessionCode').readOnly=false;
+  $('loginSubmit').classList.remove('hidden');
+  $('loginSessionCode').value='';
+  $('loginPass').value='';
+  setLoginMode('login');
+  document.body.classList.remove('scanner-only');
+
+  showModal('Phiên kiểm kê đã dừng',`<div style="text-align:center;padding:8px 0 4px">
+    <div style="font-size:56px;line-height:1;margin-bottom:12px">✓</div>
+    <h3 style="margin:0 0 8px;font-size:22px">Cảm ơn bạn!</h3>
+    <p class="muted" style="margin:0">Phiên kiểm kê đã kết thúc. Scanner đã được đăng xuất và không thể ghi thêm dữ liệu.</p>
+    <div class="modal-foot" style="margin:20px -22px -22px"><button class="btn btn-primary" type="button" onclick="closeModal()">Về màn hình chính</button></div>
+  </div>`);
 }
+
 async function logout(){
   if(currentUser?.role==='Scanner'){
     await stopScannerSessionRealtime();
@@ -1052,11 +1164,11 @@ function openSession(id){activeSessionId=id;currentPage='sessions';renderSession
 function renderSessionDetail(id){
  const s=state.sessions.find(x=>x.id===id);if(!s){navigate('sessions');return}
  const tx=productsForSession(s).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)),st=sessionStats(s),canManage=canManageSession(s);
- $('mainContent').innerHTML=`<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">← Danh sách phiên</button><div class="eyebrow" style="margin-top:14px">SESSION DETAIL</div><h1>${esc(s.code)} · ${esc(s.storeCode)}</h1><p>Tạo bởi ${esc(s.createdBy)} · ${fmtDate(s.createdAt)}</p></div><div class="inline-actions">${canManage&&s.status==='Counting'?`<button class="btn btn-secondary" onclick="stopSession('${s.id}')">Dừng phiên</button>`:''}${canManage&&s.status==='Review'?`<button class="btn btn-primary" onclick="completeSession('${s.id}')">Kết thúc phiên</button>`:''}${s.status==='Completed'&&isAdministrator()?`<button class="btn btn-danger" onclick="changeSessionStatus('${s.id}','Locked')">Khóa phiên</button>`:''}${s.status==='Locked'&&isAdministrator()?`<button class="btn btn-secondary" onclick="changeSessionStatus('${s.id}','Counting')">Mở lại</button>`:''}${canManage?`<button class="btn btn-danger" onclick="deleteSession('${s.id}')">Xóa phiên</button>`:''}</div></div><div class="session-banner"><div><div class="small muted">MÃ PHIÊN</div><div class="code">${esc(s.code)}</div><div class="small muted">Store: ${esc(s.storeCode)}</div></div><div>${statusBadge(s)}</div></div><div class="stats"><div class="card stat"><div class="stat-top">Mã sản phẩm đã scan</div><div class="stat-value">${num(st.count)}</div></div><div class="card stat"><div class="stat-top">Tổng Qty</div><div class="stat-value">${num(st.total)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(st.transactions)}</div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Scan history</div><div class="section-sub">Dữ liệu lấy trực tiếp từ Supabase</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>User</th><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${tx.map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có giao dịch scan')}</tbody></table></div></div>`}
+ $('mainContent').innerHTML=`<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">← Danh sách phiên</button><div class="eyebrow" style="margin-top:14px">SESSION DETAIL</div><h1>${esc(s.code)} · ${esc(s.storeCode)}</h1><p>Tạo bởi ${esc(s.createdBy)} · ${fmtDate(s.createdAt)}</p></div><div class="inline-actions">${canManage&&s.status==='Counting'?`<button class="btn btn-secondary" onclick="stopSession('${s.id}')">Dừng phiên</button>`:''}${canManage&&s.status==='Review'?`<button class="btn btn-primary" onclick="completeSession('${s.id}')">Kết thúc phiên</button>`:''}${canManage?`<button class="btn btn-danger" onclick="deleteSession('${s.id}')">Xóa phiên</button>`:''}</div></div><div class="session-banner"><div><div class="small muted">MÃ PHIÊN</div><div class="code">${esc(s.code)}</div><div class="small muted">Store: ${esc(s.storeCode)}</div></div><div>${statusBadge(s)}</div></div><div class="stats"><div class="card stat"><div class="stat-top">Mã sản phẩm đã scan</div><div class="stat-value">${num(st.count)}</div></div><div class="card stat"><div class="stat-top">Tổng Qty</div><div class="stat-value">${num(st.total)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(st.transactions)}</div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Scan history</div><div class="section-sub">Dữ liệu lấy trực tiếp từ Supabase</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>User</th><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${tx.map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có giao dịch scan')}</tbody></table></div></div>`}
 async function updateSessionStatusByOwner(id,status,actionLabel){
  const s=state.sessions.find(x=>x.id===id);if(!s)return;
  if(!canManageSession(s))return toast('Chỉ người tạo phiên hoặc Administrator mới được thao tác phiên.','error');
- if(status==='Completed'&&!confirm(`${actionLabel||'Kết thúc'} phiên ${s.code}? Tất cả scanner của phiên sẽ dừng.`))return;
+ if((status==='Completed'||status==='Locked')&&!confirm(`${actionLabel||'Dừng'} phiên ${s.code}? Phiên sẽ được khóa và tất cả scanner của phiên sẽ đăng xuất.`))return;
  if(status==='Counting'&&!confirm('Mở lại phiên?'))return;
  if(id===activeSessionId){sessionStopRequested=true;scanProduct=null;try{await stopCamera()}catch(e){}try{await stopCamera()}catch(e){}}
  try{
@@ -1066,24 +1178,11 @@ async function updateSessionStatusByOwner(id,status,actionLabel){
    if(!result?.success)throw new Error(result?.message||'Không thể cập nhật phiên.');
    await refreshData();
    if(id===activeSessionId && status!=='Counting' && currentUser?.role==='Scanner'){await showScannerEnded();return;}
-   renderSessionDetail(id);toast(`Đã ${status==='Completed'?'kết thúc':'cập nhật'} phiên.`,'success');
+   renderSessionDetail(id);toast(`Đã ${status==='Locked'?'dừng và khóa':status==='Completed'?'kết thúc':'cập nhật'} phiên.`,'success');
  }catch(e){sessionStopRequested=false;toast('Không thể cập nhật phiên: '+e.message,'error')}
 }
-async function stopSession(id){return updateSessionStatusByOwner(id,'Completed','Dừng')}
+async function stopSession(id){return updateSessionStatusByOwner(id,'Locked','Dừng')}
 async function completeSession(id){return updateSessionStatusByOwner(id,'Completed','Kết thúc')}
-async function changeSessionStatus(id,status){
- const s=state.sessions.find(x=>x.id===id);if(!s)return;
- if(!isAdministrator())return toast('Chỉ Administrator mới được thay đổi trạng thái phiên.','error');
- if(status==='Locked'&&!confirm('Khóa phiên này?'))return;
- if(status==='Counting'&&!confirm('Mở lại phiên?'))return;
- try{
-   const {data,error}=await supabaseClient.rpc('admin_update_session_status',{p_admin_user_id:currentUser.id,p_session_id:id,p_status:status});
-   if(error)throw error;
-   const result=Array.isArray(data)?data[0]:data;
-   if(!result?.success)throw new Error(result?.message||'Không thể cập nhật phiên.');
-   await refreshData();renderSessionDetail(id);toast('Đã cập nhật trạng thái phiên.','success');
- }catch(e){toast('Không thể cập nhật phiên: '+e.message,'error')}
-}
 async function deleteSession(id){
  const s=state.sessions.find(x=>x.id===id);if(!s)return;
  if(!canManageSession(s))return toast('Chỉ người tạo phiên hoặc Administrator mới được xóa phiên.','error');
