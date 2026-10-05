@@ -30,6 +30,31 @@
 .scn-card .product-name{font-size:20px;font-weight:850;margin:4px 0}.scn-code{font-size:20px;font-weight:800;margin:6px 0}
 .scn-qty{font-size:34px;font-weight:900;color:var(--green);line-height:1.1}.scn-qty small{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-top:4px}
 .scn-recent{margin-top:12px}.scn-row{display:flex;gap:10px;align-items:center;padding:9px 2px;border-bottom:1px solid #eef1f5}.scn-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scn-row .st{width:18px;color:var(--green);font-weight:900}.scn-row.fail .st,.scn-row.fail{color:var(--red)}
+
+.table-wrap{max-height:min(72dvh,780px)}
+thead th{position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--line)}
+.fbtn{margin-left:6px;width:20px;height:20px;border-radius:5px;background:transparent;color:#98a2b3;font-size:11px;padding:0;vertical-align:middle;line-height:1}.fbtn:hover{background:#e8eefc;color:var(--blue)}.fbtn.on{background:var(--blue);color:#fff}
+.fpop{position:fixed;z-index:120;width:250px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px #1018283a;padding:10px;display:flex;flex-direction:column;gap:8px}
+.fpop .flist{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px}
+.fpop label{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink)}.fpop label:hover{background:#f6f8fc}
+.fpop .fall{display:flex;gap:12px}.fpop .fall button{background:none;color:var(--blue);font-weight:700;font-size:12px;padding:0}
+.fpop .fact{display:flex;justify-content:flex-end;gap:6px}
+tr.clickable{cursor:pointer}tr.row-fail td{color:var(--red);background:var(--redbg)}
+/* Scanner: camera cố định trên cùng, bảng dữ liệu bên dưới, không che giao diện */
+body.scanner-only{overflow:hidden}
+body.scanner-only #loginScreen{display:block;min-height:0;background:var(--bg)}
+body.scanner-only .login-art,body.scanner-only .login-box>.brand,body.scanner-only .login-box>h2,body.scanner-only .login-box>p,body.scanner-only .login-switch,body.scanner-only #loginFields,body.scanner-only #scanLoginFields>.field,body.scanner-only #scanLoginFields>.hint{display:none}
+body.scanner-only .login-panel{display:block;padding:0}
+body.scanner-only .login-box{max-width:none}
+body.scanner-only #loginScannerArea{margin:0!important}
+.scn{height:100dvh;display:flex;flex-direction:column;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));max-width:960px;margin:0 auto}
+.scn>*{flex:none}.scn .scn-table{flex:1 1 auto;min-height:0;max-height:none;background:#fff;border:1px solid var(--line);border-radius:12px}
+.scn-cam{aspect-ratio:auto;height:clamp(170px,32dvh,320px);border-radius:12px}
+.scn .scn-head{margin-bottom:0}.scn .scn-head .code{font-size:19px}
+.scn .scn-card{padding:9px 12px}.scn .scn-card .product-name{font-size:16px;margin:2px 0}.scn .scn-qty{font-size:24px}.scn .scn-code{font-size:17px;margin:2px 0}
+.cam-ctl{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;z-index:3}
+.cam-ctl button{width:40px;height:40px;border-radius:50%;background:#ffffffe6;font-size:15px;font-weight:800;color:#172b4d;padding:0}
+.scn .camera-placeholder{padding:10px;gap:4px}.scn .camera-placeholder .cam-icon{font-size:30px}
 </style>
 </head>
 <body>
@@ -138,7 +163,7 @@ async function dbLoad(){
   return state;
 }
 
-async function refreshData(){try{await dbLoad();if($('appShell')&&!$('appShell').classList.contains('hidden')){if(currentPage==='sessions'&&activeSessionId&&typeof renderSessionDetail==='function')renderSessionDetail(activeSessionId);else renderPage()}}catch(e){console.error(e);toast('Không thể tải dữ liệu từ Supabase: '+(e.message||e),'error')}}
+async function refreshData(){try{await dbLoad();if($('appShell')&&!$('appShell').classList.contains('hidden')){if(currentPage==='sessions'&&detailId)renderSessionDetail(detailId);else renderPage()}}catch(e){console.error(e);toast('Không thể tải dữ liệu từ Supabase: '+(e.message||e),'error')}}
 function saveState(){/* Không dùng localStorage. Supabase là nguồn dữ liệu duy nhất. */}
 function loadState(){return dbLoad();}
 
@@ -346,7 +371,7 @@ function enterApp(){
   subscribeRealtime();
   renderPage();
 }
-let scanEngine='',scanTrack=null,scanBusy=false,scanSeen={c:'',t:0},scanHits={c:'',n:0},scanRecent=[],scanTotals={},autoSave=true,torchOn=false,audioCtx=null,zxReader=null,zxHints=null,zxCanvas=null,zxCtx=null,productIdx=new Map(),txIdx=new Map(),_rt=0;
+let detailId=null,inventoryStore=null,selSessions=new Set(),zoomCaps=null,zoomIdx=0,scanRows=[],scanEngine='',scanTrack=null,scanBusy=false,scanSeen={c:'',t:0},scanHits={c:'',n:0},scanRecent=[],scanTotals={},autoSave=true,torchOn=false,audioCtx=null,zxReader=null,zxHints=null,zxCanvas=null,zxCtx=null,productIdx=new Map(),txIdx=new Map(),_rt=0;
 const FMT_N=['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','itf','codabar','qr_code','data_matrix','pdf417','aztec'];
 const FMT_Z=['EAN_13','EAN_8','UPC_A','UPC_E','CODE_128','CODE_39','CODE_93','ITF','CODABAR','QR_CODE','DATA_MATRIX','PDF_417','AZTEC'];
 function rebuildIndex(){productIdx=new Map(state.products.map(p=>[String(p.barcode),p]));txIdx=new Map();for(const t of state.transactions){let a=txIdx.get(t.sessionId);if(!a)txIdx.set(t.sessionId,a=[]);a.push(t)}}
@@ -362,7 +387,7 @@ async function stopCamera(){
   const a=$('loginStartCameraBtn'),b=$('loginStopCameraBtn');
   if(a)a.disabled=false;if(b)b.disabled=true;
   $('loginCameraPlaceholder')?.classList.remove('hidden');
-  $('torchBtn')?.classList.add('hidden');
+  $('torchBtn')?.classList.add('hidden');$('zoomBtn')?.classList.add('hidden');
 }
 function loginCameraErrorMessage(e){
   const msg=String(e?.message||e||'');
@@ -419,9 +444,9 @@ async function startCamera(){
     reader.innerHTML='';reader.appendChild(v);await v.play();
     const tr=scanTrack=cameraStream.getVideoTracks()[0],caps=tr.getCapabilities?.()||{},adv={};
     if(caps.focusMode?.includes('continuous'))adv.focusMode='continuous';
-    if(caps.zoom)adv.zoom=Math.min(caps.zoom.max,Math.max(caps.zoom.min,1.5));
+    zoomCaps=caps.zoom||null;zoomIdx=0;if(zoomCaps)adv.zoom=zoomCaps.min;
     if(Object.keys(adv).length)await tr.applyConstraints({advanced:[adv]}).catch(()=>{});
-    $('torchBtn')?.classList.toggle('hidden',!caps.torch);
+    $('torchBtn')?.classList.toggle('hidden',!caps.torch);$('zoomBtn')?.classList.toggle('hidden',!caps.zoom);{const zb=$('zoomBtn');if(zb)zb.textContent='1×'}
     await initEngine();
     $('loginCameraPlaceholder')?.classList.add('hidden');
     if(b)b.disabled=false;
@@ -429,6 +454,13 @@ async function startCamera(){
   }catch(e){await stopCamera();toast(loginCameraErrorMessage(e),'error');console.error(e)}
 }
 function toggleTorch(){torchOn=!torchOn;scanTrack?.applyConstraints({advanced:[{torch:torchOn}]}).catch(()=>{})}
+function toggleZoom(){
+  if(!zoomCaps||!scanTrack)return;
+  const lv=[1,1.5,2];zoomIdx=(zoomIdx+1)%lv.length;
+  const z=Math.min(zoomCaps.max,Math.max(zoomCaps.min,lv[zoomIdx]));
+  scanTrack.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{});
+  const b=$('zoomBtn');if(b)b.textContent=lv[zoomIdx]+'×';
+}
 
 /* ---- Xác nhận mã: có trong catalog => nhận ngay; lạ => cần đọc trùng 2 lần ---- */
 function onCode(raw){
@@ -479,8 +511,8 @@ function confirmLoginScan(){
 async function quickSave(p,qty,large,small){
   const s=state.sessions.find(x=>x.id===activeSessionId);
   if(sessionStopRequested||!s||s.status!=='Counting')return showScannerEnded();
-  const rec={sku:p.sku,name:p.name,qty,ok:null};
-  scanRecent.unshift(rec);scanRecent.length=Math.min(scanRecent.length,12);
+  const rec={t:Date.now(),barcode:p.barcode,sku:p.sku,name:p.name,qty,user:'Bạn',ok:null};
+  scanRows.unshift(rec);
   scanTotals[p.id]=(scanTotals[p.id]||0)+qty;
   const panel=$('loginScanProductPanel');
   if(panel)panel.innerHTML=`<div class="scn-card ok"><div class="small muted">${esc(p.sku)} · ${esc(p.barcode)}</div><div class="product-name">${esc(p.name)}</div><div class="scn-qty">+${num(qty)}<small>Máy này đã đếm: ${num(scanTotals[p.id])}</small></div></div>`;
@@ -495,8 +527,12 @@ async function quickSave(p,qty,large,small){
   renderRecent();
 }
 function renderRecent(){
-  const el=$('scanRecent');if(!el)return;
-  el.innerHTML=scanRecent.map(r=>`<div class="scn-row ${r.ok===false?'fail':''}"><span class="st">${r.ok===null?'…':r.ok?'✓':'✕'}</span><span class="nm">${esc(r.name)}</span><b>+${num(r.qty)}</b></div>`).join('');
+  const wrap=$('scanTable');if(!wrap)return;
+  const okRows=scanRows.filter(r=>r.ok!==false);
+  const sum=$('scanSummary');if(sum)sum.textContent=`${num(okRows.length)} lượt · ${num(okRows.reduce((n,r)=>n+r.qty,0))} qty`;
+  const st=r=>r.ok===null?'Đang lưu':r.ok?'Đã lưu':'Lỗi';
+  wrap.innerHTML=`<table><thead><tr><th>Thời gian</th><th>Barcode</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Qty</th><th>Trạng thái</th></tr></thead><tbody>${scanRows.slice(0,500).map(r=>`<tr class="${r.ok===false?'row-fail':''}"><td>${new Date(r.t).toLocaleTimeString('vi-VN')}</td><td><b>${esc(r.barcode)}</b></td><td>${esc(r.sku)}</td><td>${esc(r.name)}</td><td><b>${num(r.qty)}</b></td><td>${st(r)}</td></tr>`).join('')||emptyRow(6,'Chưa quét sản phẩm nào')}</tbody></table>`;
+  enhanceTable(wrap.querySelector('table'),'scanner');
 }
 
 async function openLoginScannerByCode(code,autoStart=true){
@@ -526,28 +562,35 @@ async function openLoginScannerByCode(code,autoStart=true){
 function renderLoginScanner(){
   const area=$('loginScannerArea'),s=state.sessions.find(x=>x.id===activeSessionId);
   if(!area||!s)return;
-  scanRecent=[];scanTotals={};
+  scanTotals={};
+  scanRows=productsForSession(s).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(t=>({t:new Date(t.createdAt).getTime()||Date.now(),barcode:t.barcode,sku:t.productSnapshot?.sku||'',name:t.productSnapshot?.name||'',qty:t.qty,user:t.user,ok:true}));
+  document.body.classList.add('scanner-only');
   area.classList.remove('hidden');
   $('loginSessionCode').readOnly=true;$('loginSubmit').classList.add('hidden');
   area.innerHTML=`<div class="scn">
-    <div class="scn-head"><div><div class="small muted">Cửa hàng ${esc(s.storeCode)}</div><div class="code">${esc(s.code)}</div></div><button type="button" id="btnAuto" class="chip on" onclick="toggleAuto()">⚡ Tự lưu +1: Bật</button></div>
+    <div class="scn-head">
+      <div><div class="code">${esc(s.code)}</div><div class="small muted">Cửa hàng ${esc(s.storeCode)} · <span id="scanSummary"></span></div></div>
+      <div class="inline-actions"><button type="button" id="btnAuto" class="chip on" onclick="toggleAuto()">⚡ Tự lưu +1: Bật</button><button class="btn btn-secondary btn-sm" type="button" onclick="exitLoginScanner()">Thoát</button></div>
+    </div>
     <div class="camera-box scn-cam" id="scanFrame">
       <div id="loginReader"></div>
-      <div id="loginCameraPlaceholder" class="camera-placeholder"><div class="cam-icon">⌗</div><strong>Camera đang tắt</strong><span class="small">Bấm "Bật camera" và cho phép truy cập.</span></div>
+      <div id="loginCameraPlaceholder" class="camera-placeholder"><div class="cam-icon">⌗</div><strong>Camera đang tắt</strong><span class="small">Bấm ▶ để bật camera.</span></div>
       <div class="reticle"></div>
-      <button type="button" id="torchBtn" class="torch hidden" onclick="toggleTorch()" aria-label="Bật đèn flash">🔦</button>
+      <div class="cam-ctl">
+        <button type="button" id="zoomBtn" class="hidden" onclick="toggleZoom()" aria-label="Thu phóng">1×</button>
+        <button type="button" id="torchBtn" class="hidden" onclick="toggleTorch()" aria-label="Đèn flash">🔦</button>
+        <button type="button" id="loginStartCameraBtn" onclick="startCamera()" aria-label="Bật camera">▶</button>
+        <button type="button" id="loginStopCameraBtn" onclick="stopCamera()" aria-label="Dừng camera" disabled>■</button>
+      </div>
     </div>
-    <div class="inline-actions" style="margin-top:10px">
-      <button class="btn btn-primary" id="loginStartCameraBtn" type="button" onclick="startCamera()" style="flex:1">Bật camera</button>
-      <button class="btn btn-secondary" id="loginStopCameraBtn" type="button" onclick="stopCamera()" disabled>Dừng</button>
-      <button class="btn btn-secondary" type="button" onclick="exitLoginScanner()">Đổi phiên</button>
-    </div>
-    <div id="loginScanProductPanel" style="margin-top:12px"><div class="empty" style="padding:22px"><strong>Hướng camera vào barcode</strong>Kết quả hiện ở đây ngay khi nhận diện.</div></div>
-    <div class="inline-actions" style="margin-top:12px"><input class="input" id="loginManualBarcode" inputmode="numeric" placeholder="Nhập barcode thủ công" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupLoginBarcode()}"><button class="btn btn-secondary" type="button" onclick="lookupLoginBarcode()">Tìm</button></div>
-    <div id="scanRecent" class="scn-recent"></div>
+    <div id="loginScanProductPanel"><div class="small muted" style="padding:4px 2px">Hướng camera vào barcode, kết quả hiện ở đây.</div></div>
+    <div class="inline-actions"><input class="input" id="loginManualBarcode" inputmode="numeric" placeholder="Nhập barcode thủ công" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupLoginBarcode()}"><button class="btn btn-secondary" type="button" onclick="lookupLoginBarcode()">Tìm</button></div>
+    <div class="table-wrap scn-table" id="scanTable"></div>
   </div>`;
+  renderRecent();
 }
 async function exitLoginScanner(){
+  document.body.classList.remove('scanner-only');
   sessionStopRequested=true;
   await stopScannerSessionRealtime();
   await stopCamera();
@@ -596,6 +639,7 @@ async function showScannerEnded(){
 }
 
 async function logout(){
+  document.body.classList.remove('scanner-only');
   if(currentUser?.role==='Scanner'){
     await stopScannerSessionRealtime();
     await stopCamera();
@@ -621,7 +665,7 @@ async function logout(){
 
 async function navigate(page){
   try{await stopCamera()}catch(e){console.warn(e)}
-  currentPage=page;
+  currentPage=page;if(page==='sessions'){inventoryStore=null;detailId=null}
   document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
   try{
     renderPage();
@@ -1020,13 +1064,67 @@ async function submitCreateSession(e){
 
 function statusBadge(s){return s.status==='Counting'?'<span class="badge badge-green">● Đang kiểm kê</span>':s.status==='Review'?'<span class="badge badge-amber">◷ Chờ duyệt</span>':s.status==='Completed'?'<span class="badge badge-blue">✓ Hoàn thành</span>':'<span class="badge badge-gray">🔒 Đã khóa</span>'}
 function renderSessions(){
- const list=[...state.sessions].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
- return `<div class="page-head"><div><div class="eyebrow">STOCK TAKE</div><h1>Quản lý tồn kho</h1><p>Tạo phiên kiểm kê và theo dõi dữ liệu scan.</p></div><button class="btn btn-primary" onclick="openCreateSession()">＋ Tạo phiên</button></div><div class="card"><div class="section-head"><div><div class="section-title">Danh sách phiên</div><div class="table-count">${num(list.length)} phiên</div></div><select class="input" style="width:180px" onchange="sessionFilter=this.value;renderPage()"><option value="all" ${sessionFilter==='all'?'selected':''}>Tất cả</option><option value="Counting" ${sessionFilter==='Counting'?'selected':''}>Đang kiểm kê</option><option value="Review" ${sessionFilter==='Review'?'selected':''}>Chờ duyệt</option><option value="Completed" ${sessionFilter==='Completed'?'selected':''}>Hoàn thành</option><option value="Locked" ${sessionFilter==='Locked'?'selected':''}>Đã khóa</option></select></div><div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Người tạo</th><th>Ngày tạo</th><th>Scan</th><th>Qty</th><th>Trạng thái</th><th></th></tr></thead><tbody>${list.filter(s=>sessionFilter==='all'||s.status===sessionFilter).map(s=>{const st=sessionStats(s);return `<tr><td><strong style="color:var(--blue);letter-spacing:2px">${esc(s.code)}</strong></td><td>${esc(s.storeCode)}</td><td>${esc(s.createdBy)}</td><td>${fmtDate(s.createdAt)}</td><td>${num(st.transactions)}</td><td><strong>${num(st.total)}</strong></td><td>${statusBadge(s)}</td><td><div class="inline-actions"><button class="btn btn-light btn-sm" onclick="openSession('${s.id}')">Mở</button>${canManageSession(s)&&s.status==='Counting'?`<button class="btn btn-danger btn-sm" onclick="stopSession('${s.id}')">Dừng</button>`:''}${canManageSession(s)?`<button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}')">Xóa</button>`:''}</div></td></tr>`}).join('')||emptyRow(8,'Chưa có phiên phù hợp')}</tbody></table></div></div>`}
-function openSession(id){activeSessionId=id;currentPage='sessions';renderSessionDetail(id)}
+  if(inventoryStore)return renderStoreSessions(inventoryStore);
+  const map=new Map();
+  for(const s of state.sessions){
+    let o=map.get(s.storeCode);
+    if(!o)map.set(s.storeCode,o={store:s.storeCode,sessions:0,counting:0,scans:0,qty:0,last:0});
+    const st=sessionStats(s);o.sessions++;if(s.status==='Counting')o.counting++;o.scans+=st.transactions;o.qty+=st.total;
+    o.last=Math.max(o.last,new Date(s.createdAt).getTime()||0);
+  }
+  const list=[...map.values()].sort((a,b)=>b.last-a.last);
+  return `<div class="page-head"><div><div class="eyebrow">STOCK TAKE</div><h1>Quản lý tồn kho</h1><p>Chọn cửa hàng để xem các phiên kiểm kê và xuất Excel.</p></div><button class="btn btn-primary" onclick="openCreateSession()">＋ Tạo phiên</button></div>
+  <div class="card"><div class="section-head"><div><div class="section-title">Cửa hàng</div><div class="table-count">${num(list.length)} cửa hàng</div></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Cửa hàng</th><th>Số phiên</th><th>Đang kiểm kê</th><th>Lượt scan</th><th>Tổng Qty</th><th>Phiên gần nhất</th><th></th></tr></thead><tbody>${list.map(o=>`<tr class="clickable" data-store="${esc(o.store)}" onclick="openStore(this.dataset.store)"><td><strong style="color:var(--blue)">${esc(o.store)}</strong></td><td>${num(o.sessions)}</td><td>${o.counting?`<span class="badge badge-green">● ${o.counting}</span>`:'0'}</td><td>${num(o.scans)}</td><td><b>${num(o.qty)}</b></td><td>${o.last?fmtDate(o.last):''}</td><td><span class="muted">›</span></td></tr>`).join('')||emptyRow(7,'Chưa có cửa hàng. Hãy tạo phiên kiểm kê đầu tiên.')}</tbody></table></div></div>`;
+}
+function openStore(store){inventoryStore=store;detailId=null;selSessions.clear();renderPage();window.scrollTo({top:0})}
+function renderStoreSessions(store){
+  const list=state.sessions.filter(s=>s.storeCode===store).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  return `<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">← Cửa hàng</button><div class="eyebrow" style="margin-top:14px">STORE</div><h1>${esc(store)}</h1><p>${num(list.length)} phiên kiểm kê · <span id="selCount">${selSessions.size?`Đã chọn ${selSessions.size} phiên`:'Chưa chọn phiên'}</span></p></div>
+  <div class="inline-actions"><button class="btn btn-secondary" onclick="exportSeparate(inventoryStore)">⇩ Xuất từng phiên</button><button class="btn btn-primary" onclick="exportCombined(inventoryStore)">⇩ Xuất gộp 1 file</button></div></div>
+  <div class="card"><div class="table-wrap"><table id="sesTable"><thead><tr><th><input type="checkbox" onchange="toggleSelAll(this.checked)" aria-label="Chọn tất cả"></th><th>Mã phiên</th><th>Người tạo</th><th>Ngày tạo</th><th>Mã SP</th><th>Lượt scan</th><th>Qty</th><th>Trạng thái</th><th></th></tr></thead><tbody>${list.map(s=>{const st=sessionStats(s),cm=canManageSession(s);return `<tr data-id="${s.id}"><td><input type="checkbox" class="ses-chk" ${selSessions.has(s.id)?'checked':''} onchange="toggleSel('${s.id}',this.checked)"></td><td><strong style="color:var(--blue);letter-spacing:2px">${esc(s.code)}</strong></td><td>${esc(s.createdBy)}</td><td>${fmtDate(s.createdAt)}</td><td>${num(st.count)}</td><td>${num(st.transactions)}</td><td><b>${num(st.total)}</b></td><td>${statusBadge(s)}</td><td><div class="inline-actions"><button class="btn btn-light btn-sm" onclick="openSession('${s.id}')">Mở</button><button class="btn btn-secondary btn-sm" onclick="exportOne('${s.id}')">Excel</button>${cm&&s.status==='Counting'?`<button class="btn btn-danger btn-sm" onclick="stopSession('${s.id}')">Dừng</button>`:''}${cm?`<button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}')">Xóa</button>`:''}</div></td></tr>`}).join('')||emptyRow(9,'Cửa hàng này chưa có phiên')}</tbody></table></div></div>`;
+}
+function updSelCount(){const e=$('selCount');if(e)e.textContent=selSessions.size?`Đã chọn ${selSessions.size} phiên`:'Chưa chọn phiên'}
+function toggleSel(id,on){on?selSessions.add(id):selSessions.delete(id);updSelCount()}
+function toggleSelAll(on){document.querySelectorAll('#sesTable tbody tr[data-id]').forEach(r=>{if(r.style.display==='none')return;on?selSessions.add(r.dataset.id):selSessions.delete(r.dataset.id);const c=r.querySelector('.ses-chk');if(c)c.checked=on});updSelCount()}
+
+/* ---- Export Excel ---- */
+function selList(store){return state.sessions.filter(s=>s.storeCode===store&&selSessions.has(s.id)).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt))}
+function detailRows(s){return productsForSession(s).slice().sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)).map(t=>({'Thời gian':fmtDate(t.createdAt),'Nhân viên':t.user,'Mã phiên':s.code,'Cửa hàng':s.storeCode,'Barcode':t.barcode,'Mã SP':t.productSnapshot?.sku||'','Tên sản phẩm':t.productSnapshot?.name||'','Quy cách lớn':t.productSnapshot?.packLarge||1,'Quy cách nhỏ':t.productSnapshot?.packSmall||1,'Qty':t.qty}))}
+function summaryRows(list){const m=new Map();for(const s of list)for(const t of productsForSession(s)){let o=m.get(t.barcode);if(!o)m.set(t.barcode,o={'Barcode':t.barcode,'Mã SP':t.productSnapshot?.sku||'','Tên sản phẩm':t.productSnapshot?.name||'','Quy cách lớn':t.productSnapshot?.packLarge||1,'Quy cách nhỏ':t.productSnapshot?.packSmall||1,'Tổng Qty':0,'Lượt scan':0});o['Tổng Qty']+=Number(t.qty||0);o['Lượt scan']++}return [...m.values()].sort((a,b)=>String(a['Mã SP']).localeCompare(String(b['Mã SP'])))}
+function safeName(x){return String(x).replace(/[\\/:*?"<>|]+/g,'_')}
+function writeBook(sheets,file){
+  if(!window.XLSX){toast('Không tải được thư viện Excel.','error');return false}
+  const wb=XLSX.utils.book_new();
+  for(const [n,rows] of sheets)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{'Thông báo':'Chưa có dữ liệu scan'}]),n.slice(0,31));
+  XLSX.writeFile(wb,file);return true;
+}
+function exportOne(id){const s=state.sessions.find(x=>x.id===id);if(!s)return;if(writeBook([['Tổng hợp',summaryRows([s])],['Chi tiết',detailRows(s)]],`Inventory_${safeName(s.storeCode)}_${safeName(s.code)}.xlsx`))toast('Đã xuất file Excel.','success')}
+async function exportSeparate(store){
+  const l=selList(store);if(!l.length)return toast('Chọn ít nhất một phiên.','error');
+  for(const s of l){if(!writeBook([['Tổng hợp',summaryRows([s])],['Chi tiết',detailRows(s)]],`Inventory_${safeName(store)}_${safeName(s.code)}.xlsx`))return;await sleep(450)}
+  toast(`Đã xuất ${l.length} file. Nếu trình duyệt hỏi, hãy cho phép tải nhiều file.`,'success');
+}
+function exportCombined(store){
+  const l=selList(store);if(!l.length)return toast('Chọn ít nhất một phiên.','error');
+  const all=l.flatMap(detailRows);
+  if(writeBook([['Tổng hợp',summaryRows(l)],['Chi tiết',all]],`Inventory_${safeName(store)}_${l.length}_phien.xlsx`))toast(`Đã xuất 1 file gồm ${l.length} phiên.`,'success');
+}
+
+function openSession(id){
+  const s=state.sessions.find(x=>x.id===id);if(s)inventoryStore=s.storeCode;
+  detailId=id;currentPage='sessions';
+  document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page==='sessions'));
+  renderSessionDetail(id);window.scrollTo({top:0});
+}
+function backToStore(){detailId=null;renderPage();window.scrollTo({top:0})}
 function renderSessionDetail(id){
- const s=state.sessions.find(x=>x.id===id);if(!s){navigate('sessions');return}
- const tx=productsForSession(s).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)),st=sessionStats(s),canManage=canManageSession(s);
- $('mainContent').innerHTML=`<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">← Danh sách phiên</button><div class="eyebrow" style="margin-top:14px">SESSION DETAIL</div><h1>${esc(s.code)} · ${esc(s.storeCode)}</h1><p>Tạo bởi ${esc(s.createdBy)} · ${fmtDate(s.createdAt)}</p></div><div class="inline-actions">${canManage&&s.status==='Counting'?`<button class="btn btn-secondary" onclick="stopSession('${s.id}')">Dừng phiên</button>`:''}${canManage&&s.status==='Review'?`<button class="btn btn-primary" onclick="completeSession('${s.id}')">Kết thúc phiên</button>`:''}${canManage?`<button class="btn btn-danger" onclick="deleteSession('${s.id}')">Xóa phiên</button>`:''}</div></div><div class="session-banner"><div><div class="small muted">MÃ PHIÊN</div><div class="code">${esc(s.code)}</div><div class="small muted">Store: ${esc(s.storeCode)}</div></div><div>${statusBadge(s)}</div></div><div class="stats"><div class="card stat"><div class="stat-top">Mã sản phẩm đã scan</div><div class="stat-value">${num(st.count)}</div></div><div class="card stat"><div class="stat-top">Tổng Qty</div><div class="stat-value">${num(st.total)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(st.transactions)}</div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Scan history</div><div class="section-sub">Dữ liệu lấy trực tiếp từ Supabase</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>User</th><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${tx.map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có giao dịch scan')}</tbody></table></div></div>`}
+  const s=state.sessions.find(x=>x.id===id);if(!s){navigate('sessions');return}
+  const tx=productsForSession(s).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)),st=sessionStats(s),cm=canManageSession(s);
+  $('mainContent').innerHTML=`<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="backToStore()">← ${esc(s.storeCode)}</button><div class="eyebrow" style="margin-top:14px">SESSION</div><h1>${esc(s.code)} · ${esc(s.storeCode)}</h1><p>Tạo bởi ${esc(s.createdBy)} · ${fmtDate(s.createdAt)} · ${statusBadge(s)}</p></div><div class="inline-actions"><button class="btn btn-secondary" onclick="exportOne('${s.id}')">⇩ Xuất Excel</button>${cm&&s.status==='Counting'?`<button class="btn btn-secondary" onclick="stopSession('${s.id}')">Dừng phiên</button>`:''}${cm&&s.status==='Review'?`<button class="btn btn-primary" onclick="completeSession('${s.id}')">Kết thúc phiên</button>`:''}${cm?`<button class="btn btn-danger" onclick="deleteSession('${s.id}')">Xóa phiên</button>`:''}</div></div>
+  <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="card stat"><div class="stat-top">Mã sản phẩm đã scan</div><div class="stat-value">${num(st.count)}</div></div><div class="card stat"><div class="stat-top">Tổng Qty</div><div class="stat-value">${num(st.total)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(st.transactions)}</div></div></div>
+  <div class="card"><div class="section-head"><div><div class="section-title">Dữ liệu đã scan</div><div class="section-sub">Cập nhật realtime từ Supabase</div></div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>User</th><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${tx.map(t=>`<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`).join('')||emptyRow(6,'Chưa có giao dịch scan')}</tbody></table></div></div>`;
+}
 async function updateSessionStatusByOwner(id,status,actionLabel){
  const s=state.sessions.find(x=>x.id===id);if(!s)return;
  if(!canManageSession(s))return toast('Chỉ người tạo phiên hoặc Administrator mới được thao tác phiên.','error');
@@ -1040,7 +1138,7 @@ async function updateSessionStatusByOwner(id,status,actionLabel){
    if(!result?.success)throw new Error(result?.message||'Không thể cập nhật phiên.');
    await refreshData();
    if(id===activeSessionId && status!=='Counting' && currentUser?.role==='Scanner'){await showScannerEnded();return;}
-   renderSessionDetail(id);toast(`Đã ${status==='Locked'?'dừng và khóa':status==='Completed'?'kết thúc':'cập nhật'} phiên.`,'success');
+   if(detailId)renderSessionDetail(id);else renderPage();toast(`Đã ${status==='Locked'?'dừng và khóa':status==='Completed'?'kết thúc':'cập nhật'} phiên.`,'success');
  }catch(e){sessionStopRequested=false;toast('Không thể cập nhật phiên: '+e.message,'error')}
 }
 async function stopSession(id){return updateSessionStatusByOwner(id,'Locked','Dừng')}
@@ -1058,15 +1156,10 @@ async function deleteSession(id){
    state.sessions=state.sessions.filter(x=>x.id!==id);
    state.transactions=state.transactions.filter(x=>x.sessionId!==id);
    if(id===activeSessionId){activeSessionId=null;await stopScannerSessionRealtime();await logout();return;}
-   await refreshData();navigate('sessions');toast('Đã xóa phiên.','success');
+   detailId=null;await refreshData();toast('Đã xóa phiên.','success');
  }catch(e){sessionStopRequested=false;toast('Không thể xóa phiên: '+e.message,'error')}
 }
 
-function renderInventory(){const stores=uniqueStores();if(inventoryStore){return renderStoreDetail(inventoryStore)}return `<div class="page-head"><div><div class="eyebrow">INVENTORY</div><h1>Quản lý tồn kho</h1><p>Danh sách cửa hàng duy nhất từ các phiên kiểm kê.</p></div></div><div class="store-grid">${stores.map(store=>{const tx=state.transactions.filter(t=>state.sessions.find(s=>s.id===t.sessionId)?.storeCode===store);const sessions=state.sessions.filter(s=>s.storeCode===store);return `<button class="store-card" onclick="openStore('${esc(store)}')"><div class="store-icon">▥</div><div><b>${esc(store)}</b><div class="muted small">${sessions.length} phiên · ${tx.length} lượt scan</div></div><span>›</span></button>`}).join('')||`<div class="card"><div class="empty"><strong>Chưa có cửa hàng</strong>Hãy tạo phiên kiểm kê trước.</div></div>`}</div>`}
-function uniqueStores(){return [...new Set(state.sessions.map(s=>s.storeCode).filter(Boolean))].sort()}
-function openStore(store){inventoryStore=store;renderPage()}
-function renderStoreDetail(store){const sessions=state.sessions.filter(s=>s.storeCode===store),tx=state.transactions.filter(t=>sessions.some(s=>s.id===t.sessionId));const agg={};tx.forEach(t=>{if(!agg[t.barcode])agg[t.barcode]={barcode:t.barcode,qty:0,scans:0,lastAt:0,product:t.productSnapshot};agg[t.barcode].qty+=Number(t.qty||0);agg[t.barcode].scans++;agg[t.barcode].lastAt=Math.max(agg[t.barcode].lastAt,t.createdAt)});return `<div class="page-head"><div><button class="btn btn-secondary btn-sm" onclick="inventoryStore=null;renderPage()">← Cửa hàng</button><div class="eyebrow" style="margin-top:14px">STORE INVENTORY</div><h1>${esc(store)}</h1><p>Tất cả dữ liệu scan từ tất cả phiên của cửa hàng.</p></div><button class="btn btn-primary" onclick="exportStore('${esc(store)}')">⇩ Export Data</button></div><div class="card" style="margin-bottom:18px"><div class="section-head"><div><div class="section-title">Tổng hợp tồn kho</div><div class="table-count">${num(Object.keys(agg).length)} mã sản phẩm · ${num(tx.length)} lượt scan</div></div></div><div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Quy cách đóng gói lớn</th><th>Quy cách đóng gói nhỏ</th><th>Qty</th><th>Scan</th><th>Scan cuối</th></tr></thead><tbody>${Object.values(agg).map(i=>{const p=state.products.find(x=>x.barcode===i.barcode)||i.product||{};return `<tr><td><b>${esc(i.barcode)}</b></td><td>${esc(p.sku||'')}</td><td>${esc(p.name||'Unknown barcode')}</td><td>${num(p.packLarge||1)}</td><td>${num(p.packSmall||1)}</td><td><b>${num(i.qty)}</b></td><td>${num(i.scans)}</td><td>${fmtDate(i.lastAt)}</td></tr>`}).join('')||emptyRow(8,'Chưa có dữ liệu scan')}</tbody></table></div></div><div class="card"><div class="section-head"><div class="section-title">Chi tiết giao dịch</div></div><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>Nhân viên</th><th>Phiên</th><th>Barcode</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Qty</th></tr></thead><tbody>${[...tx].sort((a,b)=>b.createdAt-a.createdAt).map(t=>{const s=state.sessions.find(x=>x.id===t.sessionId);return `<tr><td>${fmtDate(t.createdAt)}</td><td>${esc(t.user)}</td><td>${esc(s?.code||'')}</td><td>${esc(t.barcode)}</td><td>${esc(t.productSnapshot?.sku||'')}</td><td>${esc(t.productSnapshot?.name||'')}</td><td><b>${num(t.qty)}</b></td></tr>`}).join('')||emptyRow(7,'Chưa có giao dịch')}</tbody></table></div></div>`}
-function exportStore(store){const sessions=state.sessions.filter(s=>s.storeCode===store),tx=state.transactions.filter(t=>sessions.some(s=>s.id===t.sessionId));const rows=tx.map(t=>{const s=sessions.find(x=>x.id===t.sessionId);return {'Time':fmtDate(t.createdAt),'Employee':t.user,'Session Code':s?.code||'','Store':store,'Barcode':t.barcode,'Product Code':t.productSnapshot?.sku||'','Product Name':t.productSnapshot?.name||'','Large Spec':t.productSnapshot?.packLarge||1,'Small Spec':t.productSnapshot?.packSmall||1,'Qty':t.qty}});exportRows(rows,`Inventory_${store}.xlsx`,'Inventory')}
 function openProductModal(id=''){
   if(!isAdministrator())return toast('Chỉ Administrator mới có quyền thêm hoặc sửa sản phẩm.','error');
   const p=state.products.find(x=>x.id===id)||{};
@@ -1201,6 +1294,77 @@ async function openInitialAdminModal(){
     }
   };
 }
+
+/* =========================================================
+   BẢNG: tiêu đề cố định + bộ lọc theo cột (áp dụng cho mọi bảng)
+   ========================================================= */
+const colFilters={};
+const cellText=(r,i)=>(r.cells[i]?.textContent||'').replace(/\s+/g,' ').trim();
+const isDataRow=r=>!(r.cells.length===1&&r.cells[0].colSpan>1);
+function tableKey(i){return [currentPage,inventoryStore||'',detailId||'',i].join('|')}
+function applyColFilters(tbl){
+  const f=colFilters[tbl.dataset.fkey]||{};
+  [...(tbl.tBodies[0]?.rows||[])].forEach(r=>{
+    if(!isDataRow(r))return;
+    let show=true;
+    for(const c in f){if(f[c].size&&f[c].has(cellText(r,+c))){show=false;break}}
+    r.style.display=show?'':'none';
+  });
+  tbl.querySelectorAll('thead .fbtn').forEach(b=>b.classList.toggle('on',!!(f[b.dataset.col]?.size)));
+}
+function enhanceTable(tbl,key){
+  if(!tbl||!tbl.tHead)return;
+  tbl.dataset.fkey=key;
+  [...tbl.tHead.rows[0].cells].forEach((th,i)=>{
+    const label=th.textContent.trim();
+    if(!label||th.querySelector('input')||/^thao tác$/i.test(label)||th.querySelector('.fbtn'))return;
+    const b=document.createElement('button');
+    b.type='button';b.className='fbtn';b.dataset.col=i;b.textContent='▾';b.title='Lọc cột';b.setAttribute('aria-label','Lọc cột '+label);
+    b.onclick=e=>{e.stopPropagation();openColFilter(tbl,i,b)};
+    th.appendChild(b);
+  });
+  applyColFilters(tbl);
+}
+function enhanceTables(root){root.querySelectorAll('table').forEach((t,i)=>enhanceTable(t,tableKey(i)))}
+let fpop=null;
+function closeColFilter(){if(fpop){fpop.remove();fpop=null;document.removeEventListener('mousedown',fpopOutside,true)}}
+function fpopOutside(e){if(fpop&&!fpop.contains(e.target)&&!e.target.classList.contains('fbtn'))closeColFilter()}
+function openColFilter(tbl,i,btn){
+  const reopen=fpop&&fpop.dataset.col==String(i)&&fpop.dataset.key===tbl.dataset.fkey;
+  closeColFilter();if(reopen)return;
+  const key=tbl.dataset.fkey,ex=new Set(colFilters[key]?.[i]||[]);
+  const vals=[...new Set([...tbl.tBodies[0].rows].filter(isDataRow).map(r=>cellText(r,i)))].sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
+  const shown=vals.slice(0,500);
+  fpop=document.createElement('div');fpop.className='fpop';fpop.dataset.col=i;fpop.dataset.key=key;
+  fpop.innerHTML=`<input class="input" placeholder="Tìm giá trị..."><div class="fall"><button type="button" data-a="all">Chọn tất cả</button><button type="button" data-a="none">Bỏ chọn</button></div><div class="flist">${shown.map(v=>`<label><input type="checkbox" value="${esc(v)}" ${ex.has(v)?'':'checked'}><span>${esc(v)||'(Trống)'}</span></label>`).join('')}</div>${vals.length>shown.length?`<div class="small muted">Hiển thị 500/${vals.length} giá trị. Dùng ô tìm kiếm để thu hẹp.</div>`:''}<div class="fact"><button type="button" class="btn btn-secondary btn-sm" data-a="clear">Xóa lọc</button><button type="button" class="btn btn-primary btn-sm" data-a="apply">Áp dụng</button></div>`;
+  document.body.appendChild(fpop);
+  const r=btn.getBoundingClientRect(),w=250;
+  fpop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
+  fpop.style.top=Math.min(r.bottom+4,Math.max(8,innerHeight-fpop.offsetHeight-8))+'px';
+  const boxes=()=>[...fpop.querySelectorAll('.flist input')];
+  fpop.querySelector('input.input').oninput=e=>{
+    const q=e.target.value.trim().toLowerCase();
+    fpop.querySelectorAll('.flist label').forEach(l=>{const m=!q||l.textContent.toLowerCase().includes(q);l.style.display=m?'':'none';l.querySelector('input').checked=m});
+  };
+  fpop.onclick=e=>{
+    const a=e.target.dataset?.a;if(!a)return;
+    if(a==='all')boxes().forEach(c=>{if(c.parentElement.style.display!=='none')c.checked=true});
+    else if(a==='none')boxes().forEach(c=>{if(c.parentElement.style.display!=='none')c.checked=false});
+    else if(a==='clear'){if(colFilters[key])delete colFilters[key][i];applyColFilters(tbl);closeColFilter()}
+    else if(a==='apply'){
+      const listed=new Set(shown),next=new Set(boxes().filter(c=>!c.checked).map(c=>c.value));
+      ex.forEach(v=>{if(!listed.has(v))next.add(v)});
+      colFilters[key]=colFilters[key]||{};
+      if(next.size)colFilters[key][i]=next;else delete colFilters[key][i];
+      applyColFilters(tbl);closeColFilter();
+    }
+  };
+  document.addEventListener('mousedown',fpopOutside,true);
+  fpop.querySelector('input.input').focus();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeColFilter()});
+new MutationObserver(()=>{closeColFilter();enhanceTables($('mainContent'))}).observe($('mainContent'),{childList:true});
+
 (async function initStockFlow(){
   try{
     const savedId=sessionStorage.getItem('stockflow_user_id');
