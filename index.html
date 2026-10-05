@@ -7,7 +7,7 @@
 <title>StockFlow | Inventory Management</title>
 <!-- Excel import/export: SheetJS. Camera scanning: html5-qrcode. Internet access is needed for these CDN libraries. -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
 <style>
@@ -16,6 +16,20 @@
 @media(max-width:1050px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.main{padding:22px}.split,.scan-layout{grid-template-columns:1fr}.login-screen{grid-template-columns:.85fr 1fr}.login-art{padding:7%}.login-art h1{font-size:34px}}
 @media(max-width:720px){.topbar{height:62px;padding:0 14px}.brand{font-size:16px}.brandmark{width:34px;height:34px}.top-actions .user-chip{display:none}.layout{display:block;min-height:calc(100vh - 62px)}.sidebar{position:fixed;left:0;top:0;bottom:0;display:none}.main{width:100%;margin:0;padding:18px 13px 90px}.page-head{margin-bottom:18px}.page-head h1{font-size:23px}.page-head p{font-size:12px}.page-head>.btn{padding:9px 10px;font-size:12px}.stats{gap:10px;margin-bottom:16px}.stat{padding:13px}.stat-value{font-size:23px;margin-top:8px}.stat-icon{width:30px;height:30px}.stat-foot{font-size:10px}.toolbar{gap:8px}.toolbar .btn{flex:1}.searchbox{min-width:100%;order:-1}.card-pad{padding:15px}.section-head{padding:15px}.section-body{padding:15px}.form-grid{grid-template-columns:1fr}.login-screen{display:block}.login-art{display:none}.login-panel{min-height:100vh;padding:24px}.login-box h2{margin-top:24px}.mobile-bottom{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:7px 5px calc(7px + env(safe-area-inset-bottom));z-index:30}.mobile-bottom button{background:transparent;color:#667085;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:750;padding:5px 0}.mobile-bottom button span{font-size:19px}.mobile-bottom button.active{color:var(--blue)}.session-banner{align-items:flex-start;flex-direction:column;padding:14px}.session-banner .code{font-size:18px}.detail-list{grid-template-columns:repeat(2,minmax(0,1fr))}.table-wrap{border-radius:12px}thead th,tbody td{padding:11px 12px}.stats .stat-top{font-size:10px}.modal-backdrop{align-items:flex-end;padding:0}.modal{border-radius:18px 18px 0 0;width:100%;max-height:92vh}.toast-area{top:70px;right:10px;width:calc(100vw - 20px)}.mobile-hide{display:none!important}}
  .scan-product-popup{padding:2px}.scan-product-popup .product-name{font-size:22px;font-weight:850;margin-bottom:4px}.scanner-ended{text-align:center;padding:70px 20px}.ended-icon{width:70px;height:70px;border-radius:50%;background:#ecfdf3;color:#067647;display:grid;place-items:center;font-size:36px;margin:0 auto 18px}@media(max-width:720px){.scan-product-popup .form-grid{grid-template-columns:1fr 1fr}.scan-product-popup .btn{min-height:46px}} 
+
+.scn-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.scn-head .code{font-size:22px;font-weight:900;letter-spacing:3px;color:var(--blue)}
+.chip{padding:9px 13px;border-radius:99px;background:#f2f4f7;color:#475467;font-weight:750;font-size:12px}.chip.on{background:var(--greenbg);color:var(--green)}
+.scn-cam{aspect-ratio:4/3;min-height:0;border:2px solid transparent;transition:border-color .15s}.scn-cam.ok{border-color:#12b76a}.scn-cam.bad{border-color:#f04438}
+.scn-cam #loginReader{position:absolute;inset:0}.scn-video{width:100%;height:100%;object-fit:cover;display:block;background:#000}.scn-cam .camera-placeholder{position:absolute;inset:0}
+.reticle{position:absolute;left:8%;right:8%;top:28%;bottom:28%;border:2px solid #ffffffcc;border-radius:12px;box-shadow:0 0 0 999px #00000055;pointer-events:none}
+.scn-cam .camera-placeholder:not(.hidden)~.reticle{display:none}
+.reticle:after{content:"";position:absolute;left:6px;right:6px;top:50%;height:2px;background:#f04438;opacity:.85;animation:sweep 1.4s ease-in-out infinite alternate}
+@keyframes sweep{from{transform:translateY(-34px)}to{transform:translateY(34px)}}@media(prefers-reduced-motion:reduce){.reticle:after{animation:none}}
+.torch{position:absolute;right:10px;bottom:10px;width:42px;height:42px;border-radius:50%;background:#ffffffdd;font-size:20px}
+.scn-card{padding:16px;border-radius:14px;border:1px solid var(--line);border-left:6px solid #12b76a;background:#fff}.scn-card.bad{border-left-color:#f04438;background:var(--redbg);color:var(--red)}
+.scn-card .product-name{font-size:20px;font-weight:850;margin:4px 0}.scn-code{font-size:20px;font-weight:800;margin:6px 0}
+.scn-qty{font-size:34px;font-weight:900;color:var(--green);line-height:1.1}.scn-qty small{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-top:4px}
+.scn-recent{margin-top:12px}.scn-row{display:flex;gap:10px;align-items:center;padding:9px 2px;border-bottom:1px solid #eef1f5}.scn-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scn-row .st{width:18px;color:var(--green);font-weight:900}.scn-row.fail .st,.scn-row.fail{color:var(--red)}
 </style>
 </head>
 <body>
@@ -120,6 +134,7 @@ async function dbLoad(){
   state.users=(payload.users||[]).map(normalizeUser);
   state.sessions=(payload.sessions||[]).map(normalizeSession);
   state.transactions=(payload.transactions||[]).map(normalizeTransaction);
+  rebuildIndex();
   return state;
 }
 
@@ -130,11 +145,11 @@ function loadState(){return dbLoad();}
 function subscribeRealtime(){
   if(realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
   realtimeChannel=supabaseClient.channel('stockflow-realtime')
-    .on('postgres_changes',{event:'*',schema:'public',table:'products'},()=>refreshData())
-    .on('postgres_changes',{event:'*',schema:'public',table:'stores'},()=>refreshData())
-    .on('postgres_changes',{event:'*',schema:'public',table:'users'},()=>refreshData())
-    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_sessions'},()=>refreshData())
-    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_transactions'},()=>refreshData())
+    .on('postgres_changes',{event:'*',schema:'public',table:'products'},()=>refreshSoon())
+    .on('postgres_changes',{event:'*',schema:'public',table:'stores'},()=>refreshSoon())
+    .on('postgres_changes',{event:'*',schema:'public',table:'users'},()=>refreshSoon())
+    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_sessions'},()=>refreshSoon())
+    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_transactions'},()=>refreshSoon())
     .subscribe((status)=>console.log('StockFlow Realtime:',status));
 }
 
@@ -331,286 +346,157 @@ function enterApp(){
   subscribeRealtime();
   renderPage();
 }
-async function stopCamera(){
-  barcodeLoopActive=false;
-  if(cameraStream){
-    try{cameraStream.getTracks().forEach(t=>t.stop())}catch(e){}
-    cameraStream=null;
-  }
-  if(cameraVideo){
-    try{cameraVideo.pause()}catch(e){}
-    try{cameraVideo.srcObject=null}catch(e){}
-  }
-  cameraVideo=null;
-  barcodeDetector=null;
-  try{
-    if(scanner){
-      const activeScanner=scanner;
-      scanner=null;
-      try{await activeScanner.stop()}catch(e){console.warn('Camera stop:',e)}
-      try{await activeScanner.clear()}catch(e){}
-    }
-  }catch(e){console.warn('stopCamera:',e)}
-  const startBtn=$('loginStartCameraBtn');
-  const stopBtn=$('loginStopCameraBtn');
-  const placeholder=$('loginCameraPlaceholder');
-  if(startBtn)startBtn.disabled=false;
-  if(stopBtn)stopBtn.disabled=true;
-  if(placeholder)placeholder.classList.remove('hidden');
-}
+let scanEngine='',scanTrack=null,scanBusy=false,scanSeen={c:'',t:0},scanHits={c:'',n:0},scanRecent=[],scanTotals={},autoSave=true,torchOn=false,audioCtx=null,zxReader=null,zxHints=null,zxCanvas=null,zxCtx=null,productIdx=new Map(),txIdx=new Map(),_rt=0;
+const FMT_N=['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','itf','codabar','qr_code','data_matrix','pdf417','aztec'];
+const FMT_Z=['EAN_13','EAN_8','UPC_A','UPC_E','CODE_128','CODE_39','CODE_93','ITF','CODABAR','QR_CODE','DATA_MATRIX','PDF_417','AZTEC'];
+function rebuildIndex(){productIdx=new Map(state.products.map(p=>[String(p.barcode),p]));txIdx=new Map();for(const t of state.transactions){let a=txIdx.get(t.sessionId);if(!a)txIdx.set(t.sessionId,a=[]);a.push(t)}}
+function refreshSoon(){clearTimeout(_rt);_rt=setTimeout(refreshData,500)}
 
+async function stopCamera(){
+  barcodeLoopActive=false;scanBusy=false;
+  try{cameraStream?.getTracks().forEach(t=>t.stop())}catch(e){}
+  cameraStream=null;scanTrack=null;torchOn=false;
+  if(cameraVideo){try{cameraVideo.pause();cameraVideo.srcObject=null}catch(e){}}
+  cameraVideo=null;barcodeDetector=null;zxReader=null;
+  const r=$('loginReader');if(r)r.innerHTML='';
+  const a=$('loginStartCameraBtn'),b=$('loginStopCameraBtn');
+  if(a)a.disabled=false;if(b)b.disabled=true;
+  $('loginCameraPlaceholder')?.classList.remove('hidden');
+  $('torchBtn')?.classList.add('hidden');
+}
 function loginCameraErrorMessage(e){
   const msg=String(e?.message||e||'');
-  if(!window.isSecureContext && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
-    return 'Camera chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở app bằng đường dẫn HTTPS.';
-  }
-  if(!navigator.mediaDevices?.getUserMedia){
-    return 'Trình duyệt không hỗ trợ Camera API hoặc trang chưa chạy trong HTTPS.';
-  }
-  if(/permission|notallowed|denied/i.test(msg)){
-    return 'Camera đang bị chặn. Hãy bấm biểu tượng khóa trên thanh địa chỉ → Camera → Cho phép, sau đó bấm "Bật camera".';
-  }
-  if(/secure|https/i.test(msg)){
-    return 'Camera yêu cầu HTTPS hoặc localhost.';
-  }
+  if(!window.isSecureContext&&!['localhost','127.0.0.1'].includes(location.hostname))return 'Camera chỉ hoạt động trên HTTPS hoặc localhost.';
+  if(!navigator.mediaDevices?.getUserMedia)return 'Trình duyệt không hỗ trợ Camera API.';
+  if(/permission|notallowed|denied/i.test(msg))return 'Camera đang bị chặn. Bấm biểu tượng khóa trên thanh địa chỉ → Camera → Cho phép.';
   return 'Không thể mở camera: '+msg;
 }
 
+/* ---- Engine: BarcodeDetector (phần cứng) -> ZXing (cắt vùng giữa khung, TRY_HARDER) ---- */
+async function initEngine(){
+  if('BarcodeDetector' in window){
+    try{const sup=await BarcodeDetector.getSupportedFormats(),f=FMT_N.filter(x=>sup.includes(x));
+      if(f.length){barcodeDetector=new BarcodeDetector({formats:f});scanEngine='native';return}}catch(e){}
+  }
+  if(!window.ZXing)throw new Error('Thư viện ZXing chưa tải được. Kiểm tra Internet.');
+  const Z=ZXing,m=new Map();
+  m.set(Z.DecodeHintType.POSSIBLE_FORMATS,FMT_Z.map(k=>Z.BarcodeFormat[k]));
+  m.set(Z.DecodeHintType.TRY_HARDER,true);
+  zxReader=new Z.MultiFormatReader();zxHints=m;
+  zxCanvas=document.createElement('canvas');zxCtx=zxCanvas.getContext('2d',{willReadFrequently:true});
+  scanEngine='zxing';
+}
+async function detectFrame(v){
+  if(scanEngine==='native'){const r=await barcodeDetector.detect(v);return r.find(x=>x.rawValue)?.rawValue||''}
+  const w=v.videoWidth,h=v.videoHeight,ch=Math.round(h*.45),sy=Math.round((h-ch)/2);
+  if(zxCanvas.width!==w||zxCanvas.height!==ch){zxCanvas.width=w;zxCanvas.height=ch}
+  zxCtx.drawImage(v,0,sy,w,ch,0,0,w,ch);
+  try{return zxReader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(zxCanvas))),zxHints).getText()}catch(e){return ''}
+}
+function runLoop(){
+  const v=cameraVideo;
+  const step=async()=>{
+    if(!barcodeLoopActive||cameraVideo!==v)return;
+    if(!scanBusy&&v.readyState>=2){scanBusy=true;try{const c=await detectFrame(v);if(c)onCode(c)}catch(e){}scanBusy=false}
+    next();
+  };
+  const next=()=>v.requestVideoFrameCallback?v.requestVideoFrameCallback(step):requestAnimationFrame(step);
+  next();
+}
 async function startCamera(){
   if(sessionStopRequested)return;
   const live=state.sessions.find(x=>x.id===activeSessionId);
   if(!live||live.status!=='Counting')return showScannerEnded();
-  if(scanner||cameraStream||barcodeLoopActive)return;
-
-  const reader=$('loginReader');
-  if(!reader)return toast('Không tìm thấy vùng camera.','error');
-  const startBtn=$('loginStartCameraBtn'),stopBtn=$('loginStopCameraBtn'),placeholder=$('loginCameraPlaceholder');
-  if(startBtn)startBtn.disabled=true;
-
-  if(!window.isSecureContext && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
-    if(startBtn)startBtn.disabled=false;
-    return toast(loginCameraErrorMessage(new Error('secure context required')),'error');
-  }
-  if(!navigator.mediaDevices?.getUserMedia){
-    if(startBtn)startBtn.disabled=false;
-    return toast(loginCameraErrorMessage(new Error('getUserMedia unavailable')),'error');
-  }
-
-  const onScan=decodedText=>{
-    if(sessionStopRequested)return;
-    const current=state.sessions.find(x=>x.id===activeSessionId);
-    if(!current||current.status!=='Counting'){showScannerEnded();return}
-    const code=String(decodedText||'').trim();
-    if(!code||code===lastScannedBarcode)return;
-    lastScannedBarcode=code;
-    setTimeout(()=>{if(lastScannedBarcode===code)lastScannedBarcode=''},900);
-    const input=$('loginManualBarcode');
-    if(input)input.value=code;
-    processLoginBarcode(code);
-    try{navigator.vibrate?.(70)}catch(e){}
-  };
-
-  // First choice on modern Android/Chrome: native BarcodeDetector + a high-resolution camera stream.
-  // It is considerably faster for 1D barcodes than forcing a generic QR-oriented scan.
+  if(cameraStream||barcodeLoopActive)return;
+  const reader=$('loginReader'),a=$('loginStartCameraBtn'),b=$('loginStopCameraBtn');
+  if(!reader)return;
+  if(!navigator.mediaDevices?.getUserMedia)return toast(loginCameraErrorMessage(),'error');
+  if(a)a.disabled=true;
   try{
-    if('BarcodeDetector' in window){
-      const supported=await BarcodeDetector.getSupportedFormats();
-      const formats=['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e','qr_code','data_matrix','pdf417','aztec'].filter(f=>supported.includes(f));
-      if(formats.length){
-        barcodeDetector=new BarcodeDetector({formats});
-        cameraStream=await navigator.mediaDevices.getUserMedia({
-          audio:false,
-          video:{
-            facingMode:{ideal:'environment'},
-            width:{ideal:1920,min:1280},
-            height:{ideal:1080,min:720},
-            frameRate:{ideal:30,min:24}
-          }
-        });
-        cameraVideo=document.createElement('video');
-        cameraVideo.id='loginNativeCamera';
-        cameraVideo.autoplay=true;
-        cameraVideo.muted=true;
-        cameraVideo.playsInline=true;
-        cameraVideo.setAttribute('playsinline','');
-        cameraVideo.style.cssText='display:block;width:100%;height:auto;min-height:250px;object-fit:cover;background:#000;';
-        reader.innerHTML='';
-        reader.appendChild(cameraVideo);
-        cameraVideo.srcObject=cameraStream;
-        await cameraVideo.play();
-        const track=cameraStream.getVideoTracks()[0];
-        try{
-          const caps=track.getCapabilities?.()||{};
-          const advanced={};
-          if(caps.focusMode?.includes('continuous'))advanced.focusMode='continuous';
-          if(caps.exposureMode?.includes('continuous'))advanced.exposureMode='continuous';
-          if(caps.whiteBalanceMode?.includes('continuous'))advanced.whiteBalanceMode='continuous';
-          if(caps.zoom){
-            const z=Math.min(caps.max,Math.max(caps.min,(caps.min||1)+((caps.max-(caps.min||1))*0.22)));
-            advanced.zoom=z;
-          }
-          if(Object.keys(advanced).length)await track.applyConstraints({advanced:[advanced]});
-        }catch(e){console.debug('Camera fine tuning skipped:',e)}
-
-        placeholder?.classList.add('hidden');
-        if(stopBtn)stopBtn.disabled=false;
-        barcodeLoopActive=true;
-        let lastDetect=0;
-        const detectLoop=async(ts)=>{
-          if(!barcodeLoopActive||sessionStopRequested||!cameraVideo||cameraVideo.readyState<2)return;
-          if(ts-lastDetect>=45){
-            lastDetect=ts;
-            try{
-              const results=await barcodeDetector.detect(cameraVideo);
-              if(results?.length){
-                const value=results.find(x=>x.rawValue)?.rawValue;
-                if(value)onScan(value);
-              }
-            }catch(e){/* camera frame can be skipped while autofocus adjusts */}
-          }
-          if(barcodeLoopActive)requestAnimationFrame(detectLoop);
-        };
-        requestAnimationFrame(detectLoop);
-        toast('Camera tốc độ cao đã bật. Giữ barcode rõ nét trong khung.','success');
-        return;
-      }
-    }
-  }catch(nativeError){
-    console.warn('Native BarcodeDetector failed, using html5-qrcode:',nativeError);
-    await stopCamera();
-    if(startBtn)startBtn.disabled=true;
-  }
-
-  // Compatibility fallback: html5-qrcode, configured specifically for 1D barcodes and a wide scan area.
-  if(typeof Html5Qrcode==='undefined'){
-    if(startBtn)startBtn.disabled=false;
-    return toast('Thư viện camera chưa tải được. Kiểm tra Internet rồi thử lại.','error');
-  }
-  const supportedFormats=[
-    'QR_CODE','AZTEC','CODABAR','CODE_39','CODE_93','CODE_128','DATA_MATRIX','EAN_8','EAN_13','ITF','PDF_417','UPC_A','UPC_E'
-  ].map(k=>window.Html5QrcodeSupportedFormats?.[k]).filter(v=>v!==undefined);
-  try{
-    scanner=new Html5Qrcode('loginReader');
-    await scanner.start(
-      {facingMode:'environment'},
-      {
-        fps:20,
-        qrbox:(w,h)=>({width:Math.max(280,Math.floor(w*0.92)),height:Math.max(100,Math.floor(h*0.42))}),
-        aspectRatio:1.777778,
-        disableFlip:true,
-        ...(supportedFormats.length?{formatsToSupport:supportedFormats}:{}),
-        experimentalFeatures:{useBarCodeDetectorIfSupported:true}
-      },
-      onScan,
-      ()=>{}
-    );
-    placeholder?.classList.add('hidden');
-    if(stopBtn)stopBtn.disabled=false;
-    toast('Camera đã bật ở chế độ barcode nhanh.','success');
-  }catch(firstError){
-    console.warn('Camera environment failed:',firstError);
-    try{if(scanner){const old=scanner;scanner=null;try{await old.stop()}catch(e){}try{await old.clear()}catch(e){}}}catch(e){}
-    try{
-      scanner=new Html5Qrcode('loginReader');
-      await scanner.start(
-        {facingMode:'user'},
-        {fps:15,qrbox:(w,h)=>({width:Math.max(260,Math.floor(w*0.9)),height:Math.max(100,Math.floor(h*0.42))}),disableFlip:true,...(supportedFormats.length?{formatsToSupport:supportedFormats}:{})},
-        onScan,
-        ()=>{}
-      );
-      placeholder?.classList.add('hidden');
-      if(stopBtn)stopBtn.disabled=false;
-      toast('Camera đã bật. Đưa barcode vào khung scan.','success');
-    }catch(secondError){
-      scanner=null;
-      if(startBtn)startBtn.disabled=false;
-      if(stopBtn)stopBtn.disabled=true;
-      toast(loginCameraErrorMessage(secondError),'error');
-      console.error('Camera start failed:',firstError,secondError);
-    }
-  }
+    cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}});
+    const v=cameraVideo=document.createElement('video');
+    v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');v.className='scn-video';v.srcObject=cameraStream;
+    reader.innerHTML='';reader.appendChild(v);await v.play();
+    const tr=scanTrack=cameraStream.getVideoTracks()[0],caps=tr.getCapabilities?.()||{},adv={};
+    if(caps.focusMode?.includes('continuous'))adv.focusMode='continuous';
+    if(caps.zoom)adv.zoom=Math.min(caps.zoom.max,Math.max(caps.zoom.min,1.5));
+    if(Object.keys(adv).length)await tr.applyConstraints({advanced:[adv]}).catch(()=>{});
+    $('torchBtn')?.classList.toggle('hidden',!caps.torch);
+    await initEngine();
+    $('loginCameraPlaceholder')?.classList.add('hidden');
+    if(b)b.disabled=false;
+    barcodeLoopActive=true;runLoop();
+  }catch(e){await stopCamera();toast(loginCameraErrorMessage(e),'error');console.error(e)}
 }
+function toggleTorch(){torchOn=!torchOn;scanTrack?.applyConstraints({advanced:[{torch:torchOn}]}).catch(()=>{})}
+
+/* ---- Xác nhận mã: có trong catalog => nhận ngay; lạ => cần đọc trùng 2 lần ---- */
+function onCode(raw){
+  if(sessionStopRequested)return;
+  const code=String(raw||'').trim();if(!code)return;
+  const now=performance.now();
+  if(scanSeen.c===code&&now-scanSeen.t<1500)return;
+  const known=productIdx.has(code);
+  if(!known){if(scanHits.c===code)scanHits.n++;else scanHits={c:code,n:1};if(scanHits.n<2)return}
+  scanHits={c:'',n:0};scanSeen={c:code,t:now};
+  const input=$('loginManualBarcode');if(input)input.value=code;
+  processLoginBarcode(code);
+}
+function beep(ok){try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=ok?1400:280;g.gain.value=.15;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+(ok?.07:.25))}catch(e){}}
+function flash(ok){const f=$('scanFrame');if(!f)return;f.classList.remove('ok','bad');void f.offsetWidth;f.classList.add(ok?'ok':'bad')}
+function feedback(ok){beep(ok);flash(ok);try{navigator.vibrate?.(ok?40:[80,60,80])}catch(e){}}
+function toggleAuto(){autoSave=!autoSave;const b=$('btnAuto');if(b){b.classList.toggle('on',autoSave);b.textContent=autoSave?'⚡ Tự lưu +1: Bật':'✎ Nhập số lượng: Bật'}}
 
 function processLoginBarcode(code){
   const live=state.sessions.find(x=>x.id===activeSessionId);
   if(sessionStopRequested||!live||live.status!=='Counting'){showScannerEnded();return}
-  const barcode=String(code||'').trim();
-  const p=state.products.find(x=>String(x.barcode)===barcode);
-  const panel=$('loginScanProductPanel');
+  const barcode=String(code||'').trim(),p=productIdx.get(barcode),panel=$('loginScanProductPanel');
   if(!panel)return;
   if(!p){
-    scanProduct={barcode,notFound:true};
-    panel.innerHTML=`<div class="warning-note"><b>Barcode không tồn tại</b><div style="font-size:18px;margin-top:7px">${esc(barcode)}</div><div style="margin-top:8px">Hãy yêu cầu Administrator import sản phẩm vào Product Catalog.</div></div>`;
-    toast('Barcode chưa có trong Product Catalog.','error');
+    scanProduct={barcode,notFound:true};feedback(false);
+    panel.innerHTML=`<div class="scn-card bad"><b>Không có trong danh mục</b><div class="scn-code">${esc(barcode)}</div><div class="small">Nhờ Administrator import sản phẩm này.</div></div>`;
     return;
   }
-  scanProduct={...p};
-  panel.innerHTML=`<div class="badge badge-green">✓ Barcode đã nhận diện</div>
-    <div class="scan-result">
-      <div class="small muted">BARCODE</div><strong style="font-size:19px">${esc(p.barcode)}</strong>
-      <div class="product-name">${esc(p.name)}</div>
-      <div class="muted">Mã sản phẩm: <b>${esc(p.sku)}</b></div>
-      <div class="form-grid" style="margin-top:14px">
-        <div class="field"><label>Quy cách lớn *</label><input id="loginLargeSpec" class="input" type="number" min="1" step="1" value="${Number(p.packLarge)||1}" inputmode="numeric"></div>
-        <div class="field"><label>Quy cách nhỏ *</label><input id="loginSmallSpec" class="input" type="number" min="1" step="1" value="${Number(p.packSmall)||1}" inputmode="numeric"></div>
-      </div>
-      <div class="field" style="margin-top:12px"><label>Qty *</label><input id="loginScanQty" class="input qty-input" type="number" min="1" step="1" value="1" inputmode="numeric"></div>
-      <div class="inline-actions" style="margin-top:10px">
-        <button class="btn btn-secondary" type="button" onclick="adjustLoginQty(-1)">−1</button>
-        <button class="btn btn-secondary" type="button" onclick="adjustLoginQty(1)">＋1</button>
-        <button class="btn btn-primary" type="button" style="flex:1" onclick="confirmLoginScan()">✓ Lưu scan</button>
-      </div>
-    </div>`;
-  setTimeout(()=>$('loginScanQty')?.focus(),50);
+  scanProduct={...p};feedback(true);
+  if(autoSave){quickSave(p,1,p.packLarge,p.packSmall);return}
+  panel.innerHTML=`<div class="scn-card ok"><div class="small muted">${esc(p.sku)} · ${esc(p.barcode)}</div><div class="product-name">${esc(p.name)}</div>
+    <div class="form-grid" style="margin-top:12px"><div class="field"><label>Quy cách lớn</label><input id="loginLargeSpec" class="input" type="number" min="1" value="${Number(p.packLarge)||1}" inputmode="numeric"></div><div class="field"><label>Quy cách nhỏ</label><input id="loginSmallSpec" class="input" type="number" min="1" value="${Number(p.packSmall)||1}" inputmode="numeric"></div></div>
+    <div class="field" style="margin-top:12px"><label>Số lượng</label><input id="loginScanQty" class="input qty-input" type="number" min="1" value="1" inputmode="numeric" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmLoginScan()}"></div>
+    <div class="inline-actions" style="margin-top:10px"><button class="btn btn-secondary" type="button" onclick="adjustLoginQty(-1)">−1</button><button class="btn btn-secondary" type="button" onclick="adjustLoginQty(1)">+1</button><button class="btn btn-primary" type="button" style="flex:1" onclick="confirmLoginScan()">Lưu</button></div></div>`;
+  setTimeout(()=>{const q=$('loginScanQty');q?.focus();q?.select()},40);
+}
+function adjustLoginQty(d){const el=$('loginScanQty');if(el)el.value=Math.max(1,(Number(el.value)||1)+d)}
+function lookupLoginBarcode(){const c=$('loginManualBarcode')?.value.trim();if(!c)return toast('Nhập barcode.','error');processLoginBarcode(c)}
+function confirmLoginScan(){
+  if(!scanProduct||scanProduct.notFound)return toast('Chưa có sản phẩm hợp lệ.','error');
+  const qty=Number($('loginScanQty')?.value),L=Number($('loginLargeSpec')?.value),S=Number($('loginSmallSpec')?.value);
+  if(!Number.isInteger(qty)||qty<1)return toast('Số lượng phải là số nguyên > 0.','error');
+  if(!Number.isInteger(L)||L<1||!Number.isInteger(S)||S<1)return toast('Quy cách phải là số nguyên > 0.','error');
+  quickSave(scanProduct,qty,L,S);
 }
 
-function adjustLoginQty(delta){
-  const el=$('loginScanQty');
-  if(el)el.value=Math.max(1,(Number(el.value)||1)+delta);
-}
-
-function lookupLoginBarcode(){
-  const code=$('loginManualBarcode')?.value.trim();
-  if(!code)return toast('Nhập barcode.','error');
-  processLoginBarcode(code);
-}
-
-async function confirmLoginScan(){
+/* ---- Lưu lạc quan: hiển thị ngay, gửi nền, không chờ, không tải lại toàn bộ dữ liệu ---- */
+async function quickSave(p,qty,large,small){
   const s=state.sessions.find(x=>x.id===activeSessionId);
   if(sessionStopRequested||!s||s.status!=='Counting')return showScannerEnded();
-  if(!scanProduct||scanProduct.notFound)return toast('Chưa có sản phẩm hợp lệ.','error');
-
-  const qty=Number($('loginScanQty')?.value);
-  const large=Number($('loginLargeSpec')?.value);
-  const small=Number($('loginSmallSpec')?.value);
-  if(!Number.isInteger(qty)||qty<1)return toast('Qty phải là số nguyên > 0.','error');
-  if(!Number.isInteger(large)||large<1||!Number.isInteger(small)||small<1)return toast('Quy cách phải là số nguyên > 0.','error');
-
+  const rec={sku:p.sku,name:p.name,qty,ok:null};
+  scanRecent.unshift(rec);scanRecent.length=Math.min(scanRecent.length,12);
+  scanTotals[p.id]=(scanTotals[p.id]||0)+qty;
+  const panel=$('loginScanProductPanel');
+  if(panel)panel.innerHTML=`<div class="scn-card ok"><div class="small muted">${esc(p.sku)} · ${esc(p.barcode)}</div><div class="product-name">${esc(p.name)}</div><div class="scn-qty">+${num(qty)}<small>Máy này đã đếm: ${num(scanTotals[p.id])}</small></div></div>`;
+  scanProduct=null;renderRecent();
   try{
-    const latest=state.sessions.find(x=>x.id===activeSessionId);
-    if(sessionStopRequested||!latest||latest.status!=='Counting')return showScannerEnded();
-
-    const {data,error}=await supabaseClient.rpc('scanner_save_scan',{
-      p_session_code:scanSessionCode||latest.code,
-      p_product_id:scanProduct.id,
-      p_barcode:scanProduct.barcode,
-      p_qty:qty,
-      p_pack_large:large,
-      p_pack_small:small
-    });
+    const {data,error}=await supabaseClient.rpc('scanner_save_scan',{p_session_code:scanSessionCode||s.code,p_product_id:p.id,p_barcode:p.barcode,p_qty:qty,p_pack_large:large,p_pack_small:small});
     if(error)throw error;
-    const result=Array.isArray(data)?data[0]:data;
-    if(!result?.success)throw new Error(result?.message||'Không thể lưu scan.');
-
-    toast(`Đã lưu ${scanProduct.sku}: +${qty}`,'success');
-    scanProduct=null;
-    if($('loginManualBarcode'))$('loginManualBarcode').value='';
-    if($('loginScanProductPanel'))$('loginScanProductPanel').innerHTML='<div class="empty"><div class="empty-icon">✓</div><strong>Đã lưu. Sẵn sàng scan tiếp.</strong></div>';
-    await dbLoad();
-    try{navigator.vibrate?.([50,50])}catch(e){}
-  }catch(e){
-    toast('Không thể lưu scan: '+(e.message||e),'error');
-  }
+    const r=Array.isArray(data)?data[0]:data;
+    if(!r?.success)throw new Error(r?.message||'Không thể lưu scan.');
+    rec.ok=true;
+  }catch(e){rec.ok=false;scanTotals[p.id]-=qty;toast(`Chưa lưu được ${p.sku}: ${e.message||e}`,'error')}
+  renderRecent();
+}
+function renderRecent(){
+  const el=$('scanRecent');if(!el)return;
+  el.innerHTML=scanRecent.map(r=>`<div class="scn-row ${r.ok===false?'fail':''}"><span class="st">${r.ok===null?'…':r.ok?'✓':'✕'}</span><span class="nm">${esc(r.name)}</span><b>+${num(r.qty)}</b></div>`).join('');
 }
 
 async function openLoginScannerByCode(code,autoStart=true){
@@ -638,41 +524,29 @@ async function openLoginScannerByCode(code,autoStart=true){
 }
 
 function renderLoginScanner(){
-  const area=$('loginScannerArea');
-  const s=state.sessions.find(x=>x.id===activeSessionId);
+  const area=$('loginScannerArea'),s=state.sessions.find(x=>x.id===activeSessionId);
   if(!area||!s)return;
+  scanRecent=[];scanTotals={};
   area.classList.remove('hidden');
-  $('loginSessionCode').readOnly=true;
-  $('loginSubmit').classList.add('hidden');
-
-  area.innerHTML=`<div class="card" style="padding:14px;border-radius:14px">
-    <div class="session-banner" style="margin-bottom:12px">
-      <div><div class="small muted">PHIÊN KIỂM KÊ · ${esc(s.storeCode)}</div><div class="code">${esc(s.code)}</div><div class="small">● Đang kiểm kê · Scanner</div></div>
-    </div>
-    <div class="camera-box">
-      <div id="loginCameraPlaceholder" class="camera-placeholder">
-        <div class="cam-icon">⌗</div><strong>Camera chưa khởi động</strong>
-        <span class="small">Cho phép Camera nếu trình duyệt hỏi.</span>
-      </div>
-      <div id="loginReader" style="width:100%;min-height:250px"></div>
+  $('loginSessionCode').readOnly=true;$('loginSubmit').classList.add('hidden');
+  area.innerHTML=`<div class="scn">
+    <div class="scn-head"><div><div class="small muted">Cửa hàng ${esc(s.storeCode)}</div><div class="code">${esc(s.code)}</div></div><button type="button" id="btnAuto" class="chip on" onclick="toggleAuto()">⚡ Tự lưu +1: Bật</button></div>
+    <div class="camera-box scn-cam" id="scanFrame">
+      <div id="loginReader"></div>
+      <div id="loginCameraPlaceholder" class="camera-placeholder"><div class="cam-icon">⌗</div><strong>Camera đang tắt</strong><span class="small">Bấm "Bật camera" và cho phép truy cập.</span></div>
+      <div class="reticle"></div>
+      <button type="button" id="torchBtn" class="torch hidden" onclick="toggleTorch()" aria-label="Bật đèn flash">🔦</button>
     </div>
     <div class="inline-actions" style="margin-top:10px">
-      <button class="btn btn-primary" id="loginStartCameraBtn" type="button" onclick="startCamera()">▶ Bật camera</button>
-      <button class="btn btn-secondary" id="loginStopCameraBtn" type="button" onclick="stopCamera()" disabled>■ Dừng camera</button>
-      <button class="btn btn-secondary" type="button" onclick="exitLoginScanner()">← Đổi phiên</button>
+      <button class="btn btn-primary" id="loginStartCameraBtn" type="button" onclick="startCamera()" style="flex:1">Bật camera</button>
+      <button class="btn btn-secondary" id="loginStopCameraBtn" type="button" onclick="stopCamera()" disabled>Dừng</button>
+      <button class="btn btn-secondary" type="button" onclick="exitLoginScanner()">Đổi phiên</button>
     </div>
-    <div class="field" style="margin-top:12px">
-      <label>Hoặc nhập barcode</label>
-      <div class="inline-actions">
-        <input class="input" id="loginManualBarcode" inputmode="numeric" placeholder="Barcode..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupLoginBarcode()}">
-        <button class="btn btn-secondary" type="button" onclick="lookupLoginBarcode()">Tìm</button>
-      </div>
-    </div>
-    <div id="loginScanProductPanel" style="margin-top:12px"><div class="empty"><div class="empty-icon">⌗</div><strong>Chưa quét barcode</strong></div></div>
-    <div class="small muted" style="margin-top:10px">Dữ liệu lưu trực tiếp vào phiên đang mở trên giao diện Administrator.</div>
+    <div id="loginScanProductPanel" style="margin-top:12px"><div class="empty" style="padding:22px"><strong>Hướng camera vào barcode</strong>Kết quả hiện ở đây ngay khi nhận diện.</div></div>
+    <div class="inline-actions" style="margin-top:12px"><input class="input" id="loginManualBarcode" inputmode="numeric" placeholder="Nhập barcode thủ công" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupLoginBarcode()}"><button class="btn btn-secondary" type="button" onclick="lookupLoginBarcode()">Tìm</button></div>
+    <div id="scanRecent" class="scn-recent"></div>
   </div>`;
 }
-
 async function exitLoginScanner(){
   sessionStopRequested=true;
   await stopScannerSessionRealtime();
@@ -822,7 +696,7 @@ function renderPage(){
     toast('Lỗi hiển thị trang: '+(e.message||e),'error');
   }
 }
-function productsForSession(s){return state.transactions.filter(t=>t.sessionId===s.id)}
+function productsForSession(s){return [...(txIdx.get(s.id)||[])]}
 function sessionStats(s){const tx=productsForSession(s),by={};tx.forEach(t=>{by[t.barcode]=(by[t.barcode]||0)+Number(t.qty||0)});return{count:Object.keys(by).length,total:Object.values(by).reduce((a,b)=>a+b,0),transactions:tx.length,scans:tx.length}}
 function renderDashboard(){const totalQty=state.sessions.reduce((n,s)=>n+sessionStats(s).total,0),active=state.sessions.filter(s=>s.status==='Counting').length,latest=[...state.sessions].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5);return `<div class="page-head"><div><div class="eyebrow">OVERVIEW</div><h1>Tổng quan tồn kho</h1><p>Dữ liệu được lưu trực tiếp trên Supabase.</p></div><button class="btn btn-primary" onclick="openCreateSession()">＋ Tạo phiên</button></div><div class="stats"><div class="card stat"><div class="stat-top">Tổng sản phẩm</div><div class="stat-value">${num(state.products.length)}</div></div><div class="card stat"><div class="stat-top">Phiên kiểm kê</div><div class="stat-value">${num(state.sessions.length)}</div><div class="stat-foot">${num(active)} đang kiểm kê</div></div><div class="card stat"><div class="stat-top">Tổng lượng đã đếm</div><div class="stat-value">${num(totalQty)}</div></div><div class="card stat"><div class="stat-top">Lượt scan</div><div class="stat-value">${num(state.transactions.length)}</div></div></div><div class="card"><div class="section-head"><div><div class="section-title">Phiên kiểm kê gần đây</div><div class="section-sub">Realtime từ Supabase</div></div><button class="btn btn-secondary btn-sm" onclick="navigate('sessions')">Xem tất cả →</button></div>${latest.length?`<div class="table-wrap"><table><thead><tr><th>Mã phiên</th><th>Cửa hàng</th><th>Ngày tạo</th><th>Scan</th><th>Qty</th><th>Trạng thái</th><th></th></tr></thead><tbody>${latest.map(s=>{const st=sessionStats(s);return `<tr><td><strong>${esc(s.code)}</strong></td><td>${esc(s.storeCode)}</td><td>${fmtDate(s.createdAt)}</td><td>${num(st.transactions)}</td><td>${num(st.total)}</td><td>${statusBadge(s)}</td><td><button class="btn btn-light btn-sm" onclick="openSession('${s.id}')">Chi tiết</button></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty"><strong>Chưa có phiên kiểm kê</strong>Tạo phiên đầu tiên để bắt đầu.</div>`}</div>`}
 function isAdministrator(){
@@ -837,31 +711,19 @@ function canManageSession(s){
   return isAdministrator()||isSessionCreator(s);
 }
 
+async function checkScannerSession(){
+  if(!activeSessionId||sessionStopRequested)return;
+  try{const {data,error}=await supabaseClient.rpc('scanner_open_session',{p_session_code:scanSessionCode});
+    if(error)return;const r=Array.isArray(data)?data[0]:data;
+    if(!r||r.success===false)await showScannerEnded();
+  }catch(e){}
+}
 async function subscribeScannerSessionRealtime(){
-  if(scannerRealtimeChannel)try{await supabaseClient.removeChannel(scannerRealtimeChannel)}catch(e){}
-  scannerRealtimeChannel=supabaseClient.channel('stockflow-scanner-session-'+String(activeSessionId||'unknown'))
-    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_sessions'},async payload=>{
-      const changed=payload?.new||payload?.old||{};
-      if(activeSessionId && changed.id && String(changed.id)!==String(activeSessionId))return;
-      try{
-        await dbLoad();
-        const live=state.sessions.find(x=>x.id===activeSessionId);
-        if(!live||live.status!=='Counting') await showScannerEnded();
-      }catch(e){console.warn('Scanner session realtime refresh:',e)}
-    })
-    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_transactions'},async ()=>{
-      try{await dbLoad()}catch(e){console.warn('Scanner transaction realtime refresh:',e)}
-    })
-    .subscribe(status=>console.log('StockFlow Scanner Realtime:',status));
-  if(scannerSessionPoller)clearInterval(scannerSessionPoller);
-  scannerSessionPoller=setInterval(async()=>{
-    if(!activeSessionId||sessionStopRequested)return;
-    try{
-      await dbLoad();
-      const live=state.sessions.find(x=>x.id===activeSessionId);
-      if(!live||live.status!=='Counting')await showScannerEnded();
-    }catch(e){console.warn('Scanner session poll:',e)}
-  },3000);
+  await stopScannerSessionRealtime();
+  scannerRealtimeChannel=supabaseClient.channel('sf-scn-'+activeSessionId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_sessions',filter:'id=eq.'+activeSessionId},()=>checkScannerSession())
+    .subscribe();
+  scannerSessionPoller=setInterval(checkScannerSession,8000);
 }
 async function stopScannerSessionRealtime(){
   if(scannerSessionPoller){clearInterval(scannerSessionPoller);scannerSessionPoller=null}
@@ -1305,12 +1167,6 @@ function updateTimers(){
     const start=Number(el.dataset.created),sec=Math.max(0,Math.floor((Date.now()-start)/1000));
     el.textContent=[Math.floor(sec/3600),Math.floor(sec%3600/60),sec%60].map(x=>String(x).padStart(2,'0')).join(':')
   });
-  if(currentUser?.role==='Scanner' && activeSessionId){
-    const s=state.sessions.find(x=>x.id===activeSessionId);
-    if(!s||s.status!=='Counting'){
-      if(!sessionStopRequested)showScannerEnded();
-    }
-  }
 }
 setInterval(updateTimers,1000);
 async function openInitialAdminModal(){
