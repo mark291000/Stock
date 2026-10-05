@@ -55,6 +55,15 @@ body.scanner-only #loginScannerArea{margin:0!important}
 .cam-ctl{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;z-index:3}
 .cam-ctl button{width:40px;height:40px;border-radius:50%;background:#ffffffe6;font-size:15px;font-weight:800;color:#172b4d;padding:0}
 .scn .camera-placeholder{padding:10px;gap:4px}.scn .camera-placeholder .cam-icon{font-size:30px}
+
+.scn-canvas{width:100%;height:100%;display:block;background:#000;pointer-events:none}
+.scn-hidden-video{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+video::-webkit-media-controls,video::-webkit-media-controls-start-playback-button{display:none!important;-webkit-appearance:none}
+.scn-cam #loginReader{pointer-events:none}
+.scn-table table{white-space:normal}
+.scn-table th,.scn-table td{padding:8px 10px;vertical-align:top}
+.scn-table th:first-child,.scn-table td:first-child{width:68px;white-space:nowrap}
+.scn-table .empty{padding:24px 8px}
 </style>
 </head>
 <body>
@@ -440,8 +449,12 @@ async function startCamera(){
   try{
     cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}});
     const v=cameraVideo=document.createElement('video');
-    v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');v.className='scn-video';v.srcObject=cameraStream;
-    reader.innerHTML='';reader.appendChild(v);await v.play();
+    v.muted=true;v.defaultMuted=true;v.autoplay=true;v.playsInline=true;v.controls=false;
+    ['playsinline','webkit-playsinline','muted','autoplay'].forEach(a=>v.setAttribute(a,''));
+    v.disablePictureInPicture=true;v.disableRemotePlayback=true;v.className='scn-hidden-video';
+    const cv=document.createElement('canvas');cv.className='scn-canvas';
+    reader.innerHTML='';reader.appendChild(v);reader.appendChild(cv);
+    v.srcObject=cameraStream;await v.play();startPreview(v,cv);
     const tr=scanTrack=cameraStream.getVideoTracks()[0],caps=tr.getCapabilities?.()||{},adv={};
     if(caps.focusMode?.includes('continuous'))adv.focusMode='continuous';
     zoomCaps=caps.zoom||null;zoomIdx=0;if(zoomCaps)adv.zoom=zoomCaps.min;
@@ -452,6 +465,21 @@ async function startCamera(){
     if(b)b.disabled=false;
     barcodeLoopActive=true;runLoop();
   }catch(e){await stopCamera();toast(loginCameraErrorMessage(e),'error');console.error(e)}
+}
+function startPreview(v,cv){
+  const ctx=cv.getContext('2d',{alpha:false});
+  const draw=()=>{
+    if(cameraVideo!==v)return;
+    const bw=cv.clientWidth,bh=cv.clientHeight,vw=v.videoWidth,vh=v.videoHeight;
+    if(vw&&bw&&bh){
+      const dpr=Math.min(window.devicePixelRatio||1,2),W=Math.round(bw*dpr),H=Math.round(bh*dpr);
+      if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+      const s=Math.max(W/vw,H/vh),sw=W/s,sh=H/s;
+      ctx.drawImage(v,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,W,H);
+    }
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
 }
 function toggleTorch(){torchOn=!torchOn;scanTrack?.applyConstraints({advanced:[{torch:torchOn}]}).catch(()=>{})}
 function toggleZoom(){
@@ -486,6 +514,7 @@ function processLoginBarcode(code){
   if(!panel)return;
   if(!p){
     scanProduct={barcode,notFound:true};feedback(false);
+    {const top=scanRows[0];if(!(top&&top.barcode===barcode&&top.msg&&Date.now()-top.t<5000)){scanRows.unshift({t:Date.now(),barcode,sku:'',name:'Không có trong danh mục',qty:0,ok:false,msg:'Không có DM'});renderRecent()}}
     panel.innerHTML=`<div class="scn-card bad"><b>Không có trong danh mục</b><div class="scn-code">${esc(barcode)}</div><div class="small">Nhờ Administrator import sản phẩm này.</div></div>`;
     return;
   }
@@ -530,8 +559,8 @@ function renderRecent(){
   const wrap=$('scanTable');if(!wrap)return;
   const okRows=scanRows.filter(r=>r.ok!==false);
   const sum=$('scanSummary');if(sum)sum.textContent=`${num(okRows.length)} lượt · ${num(okRows.reduce((n,r)=>n+r.qty,0))} qty`;
-  const st=r=>r.ok===null?'Đang lưu':r.ok?'Đã lưu':'Lỗi';
-  wrap.innerHTML=`<table><thead><tr><th>Thời gian</th><th>Barcode</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Qty</th><th>Trạng thái</th></tr></thead><tbody>${scanRows.slice(0,500).map(r=>`<tr class="${r.ok===false?'row-fail':''}"><td>${new Date(r.t).toLocaleTimeString('vi-VN')}</td><td><b>${esc(r.barcode)}</b></td><td>${esc(r.sku)}</td><td>${esc(r.name)}</td><td><b>${num(r.qty)}</b></td><td>${st(r)}</td></tr>`).join('')||emptyRow(6,'Chưa quét sản phẩm nào')}</tbody></table>`;
+  const st=r=>r.msg||(r.ok===null?'Đang lưu':r.ok?'Đã lưu':'Lỗi');
+  wrap.innerHTML=`<table><thead><tr><th>Giờ</th><th>Sản phẩm</th><th>Qty</th><th>Trạng thái</th></tr></thead><tbody>${scanRows.slice(0,500).map(r=>`<tr class="${r.ok===false?'row-fail':''}"><td>${new Date(r.t).toLocaleTimeString('vi-VN')}</td><td><b>${esc(r.name)}</b><div class="small muted">${esc(r.sku)}${r.sku?' · ':''}${esc(r.barcode)}</div></td><td><b>${r.qty?num(r.qty):'—'}</b></td><td>${st(r)}</td></tr>`).join('')||emptyRow(4,'Chưa quét sản phẩm nào')}</tbody></table>`;
   enhanceTable(wrap.querySelector('table'),'scanner');
 }
 
